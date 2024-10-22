@@ -1,2 +1,5 @@
 /build
 /.vscode
+**/.env
+**/env_var/include
+**/**.pem

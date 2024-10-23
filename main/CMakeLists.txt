@@ -3,6 +3,7 @@ idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS "."
                     REQUIRES
                         "api"
+                        server
                         esp_wifi
                         nvs_flash
                         )

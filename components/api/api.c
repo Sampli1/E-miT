@@ -12,7 +12,6 @@
 static const char *TAG = "HTTP_CLIENT";
 
 
-
 int get_api(char *content, char* api_address, esp_http_client_handle_t client) {
     int content_length = 0;
     esp_http_client_set_url(client, api_address);
@@ -39,6 +38,8 @@ int get_api(char *content, char* api_address, esp_http_client_handle_t client) {
     esp_http_client_close(client);
     return 1;
 }
+
+
 
 
 

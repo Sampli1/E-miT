@@ -3,3 +3,4 @@
 **/.env
 **/env_var/include
 **/**.pem
+**.sh

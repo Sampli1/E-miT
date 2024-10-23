@@ -10,15 +10,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-
-
-#include "api.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "env_var.h"
 
+#include "api.h"
+#include "server.h"
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 
@@ -123,6 +122,10 @@ void app_main(void) {
     ESP_ERROR_CHECK(ret);
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
+    // Routine to start a server
 
+    xTaskCreate(&start_server, "SERVER", 4096, NULL, 4, NULL);
+
+    // Routine to call APIs
     xTaskCreate(&start_api, "API_CALLS", 4096 * 2, NULL, 5, NULL);
 }

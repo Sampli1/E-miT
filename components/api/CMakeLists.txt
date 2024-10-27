@@ -4,4 +4,5 @@ idf_component_register(SRCS "api.c"
                         esp_http_client
                         env_var
                         spiffs
+                        esp-tls
                     )

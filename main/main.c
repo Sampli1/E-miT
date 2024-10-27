@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <sys/time.h>
 #include <inttypes.h>
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
@@ -30,6 +31,9 @@ static EventGroupHandle_t s_wifi_event_group;
 static const char *TAG = "wifi station";
 
 static int s_retry_num = 0;
+
+
+SemaphoreHandle_t xSemaphore = NULL;
 
 
 static void event_handler(void* arg, esp_event_base_t event_base,
@@ -112,8 +116,7 @@ void wifi_init_sta(void)
 
 
 void app_main(void) {
-    // Not volatile storage initialized to allow wifi connection 
-
+    // NVS INITIALIZATION
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -122,10 +125,13 @@ void app_main(void) {
     ESP_ERROR_CHECK(ret);
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
-    // Routine to start a server
 
-    xTaskCreate(&start_server, "SERVER", 4096, NULL, 4, NULL);
+    // START HTTP_CLIENT
+    start_api();
 
     // Routine to call APIs
-    xTaskCreate(&start_api, "API_CALLS", 4096 * 2, NULL, 5, NULL);
+    xTaskCreate(&start_get_requests, "API_CALLS", 8 * 1024, NULL, 5, NULL);
+
+    // Routine to start a server (HTTPd)
+    xTaskCreate(&start_server, "SERVER", 4 * 1024, NULL, 4, NULL);
 }

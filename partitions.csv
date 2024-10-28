@@ -3,5 +3,5 @@
 nvs,data,nvs,0x9000,24K,
 phy_init,data,phy,0xf000,4K,
 factory,app,factory,0x10000,1M,
-https_perms,data,spiffs,,12K,,
+https_perms,data,spiffs,,128K,,
 oauth2_tokens,data,nvs,,4K,,

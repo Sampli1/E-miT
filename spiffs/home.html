@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagina con Input List</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            background-color: #4CAF50; /* Verde */
+            padding: 20px;
+            width: 100%;
+            text-align: center;
+        }
+
+        #loginButton {
+            background-color: white; /* Colore del bottone */
+            color: #4CAF50; /* Colore del testo */
+            padding: 15px 32px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #loginButton:hover {
+            background-color: #ddd; /* Colore di hover */
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap; /* Permette il wrap per schermi piccoli */
+            justify-content: center;
+            width: 100%;
+            margin-top: 20px;
+            padding: 0 10px; /* Padding laterale per schermi piccoli */
+        }
+
+        .section {
+            width: 300px; /* Larghezza fissa per ogni sezione */
+            margin: 10px; /* Margine tra le sezioni */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        input[type="text"] {
+            width: calc(100% - 22px); /* Larghezza dell'input */
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin: 5px 0;
+            padding: 8px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* Media Query per rendere la pagina responsive */
+        @media (max-width: 768px) {
+            .section {
+                width: 90%; /* Larghezza delle sezioni su schermi piccoli */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button id="loginButton" onclick="window.location.href='OAUTH2_LINK'">Accedi</button>
+    </div>
+
+    <div class="container">
+        <div class="section">
+            <h2>Nome Sezione 1</h2>
+            <input type="text" id="inputBox1" placeholder="Scrivi qualcosa...">
+            <button onclick="addItem('itemList1', 'inputBox1')">Aggiungi</button>
+            <ul id="itemList1"></ul>
+        </div>
+
+        <div class="section">
+            <h2>Nome Sezione 2</h2>
+            <input type="text" id="inputBox2" placeholder="Scrivi qualcosa...">
+            <button onclick="addItem('itemList2', 'inputBox2')">Aggiungi</button>
+            <ul id="itemList2"></ul>
+        </div>
+    </div>
+
+    <script>
+        function loadCalendars() {
+            fetch('/get_calendars')
+                .then(response => response.json())
+                .then(calendars => {
+                    const itemList = document.getElementById("itemList");
+
+                    // Aggiunge ciascun calendario come elemento della lista
+                    calendars.forEach(calendar => {
+                        const newItem = document.createElement("li");
+                        newItem.textContent = calendar;
+                        itemList.appendChild(newItem);
+                    });
+                })
+                .catch(error => console.error("Errore nel caricamento dei calendari:", error));
+        }
+
+        function addItem(listId, inputBoxId) {
+            const inputBox = document.getElementById(inputBoxId);
+            const itemList = document.getElementById(listId);
+
+            const newItem = document.createElement("li");
+            newItem.textContent = inputBox.value;
+            itemList.appendChild(newItem);
+
+            fetch('/set_calendar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ item: inputBox.value })
+            }).then(response => {
+                if (response.ok) {
+                    console.log("Elemento salvato nel backend");
+                } else {
+                    console.error("Errore nel salvataggio");
+                }
+            });
+
+            inputBox.value = "";
+        }
+
+        window.addEventListener('DOMContentLoaded', loadCalendars);
+    </script>
+</body>
+</html>

@@ -4,10 +4,11 @@
 #include <esp_log.h>
 #include <nvs_flash.h>
 #include <sys/param.h>
+
 #include <esp_http_server.h>
+#include "esp_spiffs.h"
 #include "esp_event.h"
 #include "esp_check.h"
-
 
 #include "server.h"
 
@@ -59,7 +60,7 @@ static esp_err_t key_get_handler(httpd_req_t *req) {
 
 
     // Ask for token and start routine of refreshing, OAUTH2 ROUTINE 
-    token_managment(code, scope);
+    token_management(code, scope);
 
 
     const char* resp_str = (const char*) req->user_ctx;
@@ -76,10 +77,13 @@ static const httpd_uri_t key = {
     .user_ctx  = "OK!"
 };
 
-
-
 // Home route
 static esp_err_t home_handler(httpd_req_t *req) {
+    
+    FILE *html_fp = fopen("/spiffs/home.html", "r");
+
+    if (html_fp == NULL) ESP_LOGI(TAG, "Vaffanculo");
+
     char link[] = OAUTH2_LINK;
     char resp_str[450];
     sprintf(resp_str, "%s%s%s", "<a href=\"", link, "\"> Link per google </a>");
@@ -97,8 +101,7 @@ static const httpd_uri_t home = {
 };
 
 
-static httpd_handle_t start_webserver() {
-    
+static httpd_handle_t start_webserver() {    
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
      
@@ -108,9 +111,11 @@ static httpd_handle_t start_webserver() {
         
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
-        httpd_register_uri_handler(server, &key);
         httpd_register_uri_handler(server, &home);
-
+        httpd_register_uri_handler(server, &key);
+        httpd_register_uri_handler(server, &set_calendar);
+        httpd_register_uri_handler(server, &get_calendar);
+        httpd_register_uri_handler(server, &user_validity);
 
         return server;
     }
@@ -118,6 +123,7 @@ static httpd_handle_t start_webserver() {
     ESP_LOGI(TAG, "Error starting server!");
     return NULL;
 }
+
 
 void start_server() {
     httpd_handle_t server = start_webserver();

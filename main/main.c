@@ -17,8 +17,10 @@
 #include "nvs_flash.h"
 #include "env_var.h"
 
-#include "api.h"
+#include "client.h"
 #include "server.h"
+
+
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 

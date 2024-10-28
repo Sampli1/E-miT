@@ -1,7 +1,9 @@
-idf_component_register(SRCS "jsmn.c" "oauth2.c" "utils.c" "server.c"
+idf_component_register(SRCS "oauth2.c" "server.c" "calendar.c"
                     INCLUDE_DIRS "include"
                     REQUIRES 
                         nvs_flash
                         esp_http_server
-                        api
+                        spiffs
+                        utils
+                        client
                         )

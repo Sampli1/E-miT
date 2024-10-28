@@ -1,4 +1,4 @@
-idf_component_register(SRCS "api.c"
+idf_component_register(SRCS "client.c"
                     INCLUDE_DIRS "include"
                     REQUIRES
                         esp_http_client

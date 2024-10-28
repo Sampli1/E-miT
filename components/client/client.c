@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 
-#include "api.h"
+#include "client.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
 
@@ -228,7 +228,9 @@ void start_api() {
 
 void start_get_requests() {
     char weather[MAX_HTTP_OUTPUT_BUFFER + 1] = {'\0'};   
-    char gtt[2][200 + 1] = {"\0"};
+    char *gtt[2];
+    gtt[0] = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
+    gtt[1] = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
 
     char gtt_apis[2][100];
     sprintf(gtt_apis[0], "%s%s", GTT_API, STOP_LEL);

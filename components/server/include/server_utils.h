@@ -1,0 +1,6 @@
+#ifndef SERVER_UTILS_H
+#define SERVER_UTILS_H
+
+#define HTTP_QUERY_KEY_MAX_LEN 128
+
+#endif // SERVER_UTILS_H

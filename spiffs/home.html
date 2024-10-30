@@ -90,28 +90,61 @@
 
     <div class="container">
         <div class="section">
-            <h2>Nome Sezione 1</h2>
-            <input type="text" id="inputBox1" placeholder="Scrivi qualcosa...">
+            <h2>Sandro</h2>
+            <input type="text" id="inputBox1" placeholder="Metti id calendario">
             <button onclick="addItem('itemList1', 'inputBox1')">Aggiungi</button>
             <ul id="itemList1"></ul>
         </div>
 
         <div class="section">
-            <h2>Nome Sezione 2</h2>
-            <input type="text" id="inputBox2" placeholder="Scrivi qualcosa...">
+            <h2>Alessia</h2>
+            <input type="text" id="inputBox2" placeholder="Metti id calendario">
             <button onclick="addItem('itemList2', 'inputBox2')">Aggiungi</button>
             <ul id="itemList2"></ul>
         </div>
     </div>
 
     <script>
-        function loadCalendars() {
-            fetch('/get_calendars')
-                .then(response => response.json())
-                .then(calendars => {
-                    const itemList = document.getElementById("itemList");
+        function loadStart() {
+            fetch('/get_info', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'x-www-form-urlencoded'
+                },
+            })
+            .then((res) => res.text())
+            .then(resText => {
+                console.log(resText);
+                document.querySelector("#loginButton").setAttribute("onclick", `window.location.href='${resText}'`);
+            });
 
-                    // Aggiunge ciascun calendario come elemento della lista
+            fetch('/get_calendar?name=SANDRO')
+                .then(response => response.text())
+                .then(response => {
+                    if (response.length == 0) return;
+
+                    console.log(response);
+                    let calendars = String(response).split(" ");
+                    console.log(calendars);
+                    const itemList = document.getElementById("itemList1");
+
+                    calendars.forEach(calendar => {
+                        const newItem = document.createElement("li");
+                        newItem.textContent = calendar;
+                        itemList.appendChild(newItem);
+                    });
+                })
+                .catch(error => console.error("Errore nel caricamento dei calendari:", error));
+            
+            fetch('/get_calendar?name=ALESSIA')
+                .then(response => response.text())
+                .then(response => {
+                    console.log(response);
+                    if (response.length === 0) return;
+                    let calendars = String(response).split(" ");
+                    
+                    const itemList = document.getElementById("itemList2");
+
                     calendars.forEach(calendar => {
                         const newItem = document.createElement("li");
                         newItem.textContent = calendar;
@@ -146,7 +179,7 @@
             inputBox.value = "";
         }
 
-        window.addEventListener('DOMContentLoaded', loadCalendars);
+        window.addEventListener('DOMContentLoaded', loadStart);
     </script>
 </body>
 </html>

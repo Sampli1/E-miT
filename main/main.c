@@ -19,7 +19,8 @@
 
 #include "client.h"
 #include "server.h"
-
+#include "spiffs_handler.h"
+#include "screen.h"
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -35,6 +36,7 @@ static const char *TAG = "wifi station";
 static int s_retry_num = 0;
 
 
+SemaphoreHandle_t client_http_mutex;
 SemaphoreHandle_t xSemaphore = NULL;
 
 
@@ -117,6 +119,7 @@ void wifi_init_sta(void)
 }
 
 
+
 void app_main(void) {
     // NVS INITIALIZATION
     esp_err_t ret = nvs_flash_init();
@@ -128,11 +131,16 @@ void app_main(void) {
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
-    // START HTTP_CLIENT
-    start_api();
+    // Start spiffs memory
+    init_spiffs();
 
-    // Routine to call APIs
-    xTaskCreate(&start_get_requests, "API_CALLS", 8 * 1024, NULL, 5, NULL);
+    // START HTTP_CLIENT
+    start_http_client();
+
+    client_http_mutex = xSemaphoreCreateMutex();
+
+    // Routine to start getting screen resources
+    xTaskCreate(&start_screen, "SCREEN", 8 * 1024, NULL, 5, NULL);
 
     // Routine to start a server (HTTPd)
     xTaskCreate(&start_server, "SERVER", 4 * 1024, NULL, 4, NULL);

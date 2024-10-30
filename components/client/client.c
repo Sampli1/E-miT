@@ -4,6 +4,7 @@
 #include "client.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
+#include "spiffs_handler.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -135,82 +136,14 @@ int post_api(char *post_data, char* api_address, esp_http_client_handle_t client
     }    
 
     esp_http_client_cleanup(client);
-    start_api();
+    start_http_client();
     
     return 1;
 }
 
 
-
-
-
-
-void init_spiffs() {
-   esp_vfs_spiffs_conf_t conf = {
-        .base_path = "/spiffs",
-        .partition_label = NULL,  
-        .max_files = 5,          
-        .format_if_mount_failed = true
-    };
-
-    esp_err_t ret = esp_vfs_spiffs_register(&conf);
-    if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem");
-        } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find SPIFFS partition");
-        } else {
-            ESP_LOGE(TAG, "Failed to mount SPIFFS (error %d)", ret);
-        }
-        return;
-    }
-
-    ESP_LOGI(TAG, "SPIFFS mounted successfully");
-}
-
-#include <dirent.h>
-
-// Function to print the contents of a directory
-void print_directory_contents(const char *base_path) {
-    DIR *dir = opendir(base_path);
-    if (dir == NULL) {
-        ESP_LOGE(TAG, "Failed to open directory: %s", base_path);
-        return;
-    }
-
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
-            ESP_LOGI(TAG, "Found: %s/%s", base_path, entry->d_name);
-        }
-    }
-    closedir(dir);
-}
-
-
-const char* read_cert_from_spiffs() {
-    init_spiffs();
-    FILE* f = fopen("/spiffs/madbob-org-chain.pem", "r");  // Riferimento al file nel file system SPIFFS
-    if (!f) {
-        ESP_LOGE(TAG, "Failed to open certificate file");
-        return NULL;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    char* cert = malloc(len + 1);
-    fread(cert, 1, len, f);
-    cert[len] = '\0';
-
-    fclose(f);
-    return cert;
-}
-
-
-void start_api() {
-    const char* cert = read_cert_from_spiffs();
+void start_http_client() {
+    const char* cert = read_from_spiffs("/spiffs/madbob-org-chain.pem");
     static char user_data[MAX_HTTP_OUTPUT_BUFFER] = { 0 };
 
     esp_http_client_config_t config = { 
@@ -223,27 +156,5 @@ void start_api() {
         .user_data = user_data
     }; 
     client_http = esp_http_client_init(&config);
-}
-
-
-void start_get_requests() {
-    char weather[MAX_HTTP_OUTPUT_BUFFER + 1] = {'\0'};   
-    char *gtt[2];
-    gtt[0] = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
-    gtt[1] = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
-
-    char gtt_apis[2][100];
-    sprintf(gtt_apis[0], "%s%s", GTT_API, STOP_LEL);
-    sprintf(gtt_apis[1], "%s%s", GTT_API, STOP_SND);
-
-    ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[0]);  
-    get_api(gtt[0], gtt_apis[0], client_http, NULL, NULL, 0);
-    ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[1]);  
-    get_api(gtt[1], gtt_apis[1], client_http, NULL, NULL, 0);
-
-    ESP_LOGI(TAG, "Chiamo lui: %s", WEATHER_API);  
-    get_api(weather, WEATHER_API, client_http, NULL, NULL, 0);
-     
-    vTaskDelete(NULL);
 }
 

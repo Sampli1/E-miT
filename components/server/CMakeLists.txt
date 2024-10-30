@@ -3,7 +3,6 @@ idf_component_register(SRCS "oauth2.c" "server.c" "calendar.c"
                     REQUIRES 
                         nvs_flash
                         esp_http_server
-                        spiffs
                         utils
                         client
                         )

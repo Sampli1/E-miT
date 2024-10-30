@@ -6,6 +6,8 @@
 #include "esp_spiffs.h"
 #include "esp_event.h"
 #include "esp_check.h"
+#include "esp_log.h"
+
 
 extern const httpd_uri_t get_calendar;
 extern const httpd_uri_t set_calendar;

@@ -9,14 +9,12 @@
 #include "esp_spiffs.h"
 #include "esp_event.h"
 #include "esp_check.h"
+#include "spiffs_handler.h"
 
+#include "server_utils.h"
 #include "server.h"
 
-#define EXAMPLE_HTTP_QUERY_KEY_MAX_LEN  128
-
-
 static const char *TAG = "SERVER";
-
 
 
 
@@ -36,7 +34,7 @@ static esp_err_t key_get_handler(httpd_req_t *req) {
     }
 
     buf_len = httpd_req_get_url_query_len(req) + 1;
-    char param[EXAMPLE_HTTP_QUERY_KEY_MAX_LEN], code[EXAMPLE_HTTP_QUERY_KEY_MAX_LEN] = {0}, scope[EXAMPLE_HTTP_QUERY_KEY_MAX_LEN] = {0};
+    char param[HTTP_QUERY_KEY_MAX_LEN], code[HTTP_QUERY_KEY_MAX_LEN] = {0}, scope[HTTP_QUERY_KEY_MAX_LEN] = {0};
 
     if (buf_len > 1) {
         buf = malloc(buf_len);
@@ -46,12 +44,12 @@ static esp_err_t key_get_handler(httpd_req_t *req) {
             /* Get value of expected key from query string */
             if (httpd_query_key_value(buf, "code", param, sizeof(param)) == ESP_OK) {
                 ESP_LOGI(TAG, "Found URL query parameter => code=%s", param);
-                example_uri_decode(code, param, strnlen(param, EXAMPLE_HTTP_QUERY_KEY_MAX_LEN));
+                example_uri_decode(code, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
                 ESP_LOGI(TAG, "Decoded query parameter => %s", code);
             }
             if (httpd_query_key_value(buf, "scope", param, sizeof(param)) == ESP_OK) {
                 ESP_LOGI(TAG, "Found URL query parameter => scope=%s", param);
-                example_uri_decode(scope, param, strnlen(param, EXAMPLE_HTTP_QUERY_KEY_MAX_LEN));
+                example_uri_decode(scope, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
                 ESP_LOGI(TAG, "Decoded query parameter => %s", scope);
             }
         }
@@ -79,15 +77,10 @@ static const httpd_uri_t key = {
 
 // Home route
 static esp_err_t home_handler(httpd_req_t *req) {
+    char *home_string = "/spiffs/home.html";
+    const char *html_content = read_from_spiffs(home_string);
     
-    FILE *html_fp = fopen("/spiffs/home.html", "r");
-
-    if (html_fp == NULL) ESP_LOGI(TAG, "Vaffanculo");
-
-    char link[] = OAUTH2_LINK;
-    char resp_str[450];
-    sprintf(resp_str, "%s%s%s", "<a href=\"", link, "\"> Link per google </a>");
-    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send(req, html_content, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
@@ -101,10 +94,27 @@ static const httpd_uri_t home = {
 };
 
 
+static esp_err_t get_info_handler(httpd_req_t *req) {
+    char* response = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
+    httpd_resp_send(req, OAUTH2_LINK, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+
+static const httpd_uri_t get_info = {
+    .uri = "/get_info",
+    .method = HTTP_GET,
+    .handler   = get_info_handler,
+    .user_ctx  = "OK!"
+};
+
+
+
 static httpd_handle_t start_webserver() {    
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-     
+    
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
@@ -116,7 +126,7 @@ static httpd_handle_t start_webserver() {
         httpd_register_uri_handler(server, &set_calendar);
         httpd_register_uri_handler(server, &get_calendar);
         httpd_register_uri_handler(server, &user_validity);
-
+        httpd_register_uri_handler(server, &get_info);
         return server;
     }
 
@@ -127,7 +137,7 @@ static httpd_handle_t start_webserver() {
 
 void start_server() {
     httpd_handle_t server = start_webserver();
-
+    
     while (server) {
         sleep(5);
     }

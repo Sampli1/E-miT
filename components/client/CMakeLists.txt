@@ -5,4 +5,5 @@ idf_component_register(SRCS "client.c"
                         env_var
                         spiffs
                         esp-tls
+                        utils
                     )

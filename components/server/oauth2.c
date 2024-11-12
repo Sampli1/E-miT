@@ -112,10 +112,8 @@ void token_management(char *code, char *scope) {
 
     post_api(body, TOKEN_URI, client_http, &response);
 
-    char *access_token = malloc(sizeof(char) * MAX_POST_BODY_LENGTH);
-    char *refresh_token = malloc(sizeof(char) * MAX_POST_BODY_LENGTH);
-    memset(access_token, 0, MAX_POST_BODY_LENGTH);
-    memset(refresh_token, 0, MAX_POST_BODY_LENGTH);
+    char *access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char)); 
+    char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
 
     decompose_json_2_params(response, "access_token", access_token, "refresh_token", refresh_token);
 

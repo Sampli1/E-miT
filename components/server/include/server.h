@@ -8,7 +8,7 @@
 #include "calendar.h"
 
 
-void start_server();
+void start_server(void *pvParameters);
 
 
 #endif // SERVER_H

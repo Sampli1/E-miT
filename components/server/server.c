@@ -135,7 +135,7 @@ static httpd_handle_t start_webserver() {
 }
 
 
-void start_server() {
+void start_server(void *pvParameters) {
     httpd_handle_t server = start_webserver();
     
     while (server) {

@@ -5,3 +5,4 @@
 **/**.pem
 **.sh
 calendars.txt
+**/CMakeCache.txt

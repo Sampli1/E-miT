@@ -26,10 +26,6 @@
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef JSMN_STATIC
 #define JSMN_API static
 #else

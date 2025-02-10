@@ -6,69 +6,6 @@
 
 static const char *TAG = "OAUTH2";
 
-static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
-  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
-      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
-    return 0;
-  }
-  return -1;
-}
-
-void decompose_json_2_params(char *json, const char *param1_name, char *param1_value, const char *param2_name, char *param2_value) {
-    int i;
-    int r;
-    jsmn_parser p;
-    jsmntok_t t[128];
-
-    jsmn_init(&p);
-    r = jsmn_parse(&p, json, strlen(json), t, sizeof(t) / sizeof(t[0]));
-    if (r < 0) {
-        printf("Failed to parse JSON: %d\n", r);
-        return;
-    }
-
-    if (r < 1 || t[0].type != JSMN_OBJECT) {
-        printf("Object expected\n");
-        return;
-    }
-
-    for (i = 1; i < r; i++) {
-        if (jsoneq(json, &t[i], param1_name) == 0) {
-            strncpy(param1_value, json + t[i + 1].start, t[i + 1].end - t[i + 1].start);
-            i++;
-        } else if (jsoneq(json, &t[i], param2_name) == 0) {
-            strncpy(param2_value, json + t[i + 1].start, t[i + 1].end - t[i + 1].start);
-            i++;
-        }
-    }
-}
-
-void decompose_json_1_params(char *json, const char *param1_name, char *param1_value) {
-    int i;
-    int r;
-    jsmn_parser p;
-    jsmntok_t t[128];
-
-    jsmn_init(&p);
-    r = jsmn_parse(&p, json, strlen(json), t, sizeof(t) / sizeof(t[0]));
-    if (r < 0) {
-        printf("Failed to parse JSON: %d\n", r);
-        return;
-    }
-
-    if (r < 1 || t[0].type != JSMN_OBJECT) {
-        printf("Object expected\n");
-        return;
-    }
-
-    for (i = 1; i < r; i++) {
-        if (jsoneq(json, &t[i], param1_name) == 0) {
-            strncpy(param1_value, json + t[i + 1].start, t[i + 1].end - t[i + 1].start);
-            i++;
-        }
-    }
-}
-
 void refresh_token_management(char *surname) {
     // Get refresh token from memory
     nvs_handle_t NVS;
@@ -78,7 +15,7 @@ void refresh_token_management(char *surname) {
     nvs_get_str(NVS, surname, json_info, &sz);
     
     char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
-    decompose_json_1_params(json_info, "refresh_token", refresh_token);
+    decompose_json_dynamic_params(json_info, 1,  "refresh_token", refresh_token);
     
     // Ask for new token
     void *response;
@@ -93,7 +30,7 @@ void refresh_token_management(char *surname) {
     
     // Memorize new access token
     char *new_access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
-    decompose_json_1_params(response, "access_token", new_access_token);
+    decompose_json_dynamic_params(response, 1, "access_token", new_access_token);
     sprintf(json_info, "{ \"access_token\": \"%s\", \"refresh_token\": \"%s\"}", new_access_token, refresh_token);
     nvs_set_str(NVS, surname, json_info);  
     nvs_commit(NVS);
@@ -115,7 +52,7 @@ void token_management(char *code, char *scope) {
     char *access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char)); 
     char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
 
-    decompose_json_2_params(response, "access_token", access_token, "refresh_token", refresh_token);
+    decompose_json_dynamic_params(response, 2, "access_token", access_token, "refresh_token", refresh_token);
 
     ESP_LOGI(TAG, "ACCESS_TOKEN = %s", access_token);
     ESP_LOGI(TAG, "REFRESH TOKEN = %s", refresh_token);
@@ -139,7 +76,7 @@ void token_management(char *code, char *scope) {
     
     char email[50] = {0}, surname[50] = {0};
 
-    decompose_json_2_params(response, "email", email, "family_name", surname);
+    decompose_json_dynamic_params(response, 2, "email", email, "family_name", surname);
 
     ESP_LOGI(TAG, "EMAIL: %s", email);
     ESP_LOGI(TAG, "NAME: %s", surname);

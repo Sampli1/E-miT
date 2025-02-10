@@ -1,3 +1,7 @@
 [submodule "components/Adafruit-GFX"]
 	path = components/Adafruit-GFX
 	url = https://github.com/martinberlin/Adafruit-GFX-Library-ESP-IDF
+
+[submodule "components/CalEPD"]
+	path = components/CalEPD
+	url = https://github.com/martinberlin/CalEPD

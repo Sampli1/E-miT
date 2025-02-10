@@ -77,7 +77,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 }
 
 
-int get_api(char *content, char* api_address, esp_http_client_handle_t client, char **header_keys, char **header_values, int header_keys_length) {
+int get_api(char *content, const char* api_address, esp_http_client_handle_t client, char **header_keys, char **header_values, int header_keys_length) {
     int content_length = 0;
     esp_http_client_set_url(client, api_address);
     esp_http_client_set_method(client, HTTP_METHOD_GET);
@@ -121,7 +121,7 @@ int get_api(char *content, char* api_address, esp_http_client_handle_t client, c
 
 
 
-int post_api(char *post_data, char* api_address, esp_http_client_handle_t client, void** response) {
+int post_api(const char *post_data, const char* api_address, esp_http_client_handle_t client, void** response) {
     esp_http_client_set_url(client, api_address);
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/x-www-form-urlencoded");
@@ -149,7 +149,7 @@ void start_http_client() {
     esp_http_client_config_t config = { 
         .url= WEATHER_API,
         .cert_pem = cert,
-        .timeout_ms = 5000,
+        .timeout_ms = 10000,
         .buffer_size = 8192 * 2,
         .buffer_size_tx = 8192,
         .event_handler = _http_event_handler,

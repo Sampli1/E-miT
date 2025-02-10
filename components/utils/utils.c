@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <stdarg.h>
 
 #include "utils.h"
 
@@ -344,4 +345,112 @@ void example_uri_decode(char *dest, const char *src, size_t len) {
     unsigned char *src_ptr = (unsigned char *)src;
     unsigned char *dst_ptr = (unsigned char *)dest;
     ngx_unescape_uri(&dst_ptr, &src_ptr, len, NGX_UNESCAPE_URI);
+}
+
+
+static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
+  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
+      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
+    return 0;
+  }
+  return -1;
+}
+
+void decompose_json_dynamic_params(char *json, int num_params, ...) {
+    int i;
+    int r;
+    jsmn_parser p;
+    jsmntok_t t[1028];
+    
+    va_list args;
+    const char *param_names[num_params];
+    char *param_values[num_params];
+
+    va_start(args, num_params);
+
+    for (int j = 0; j < num_params; j++) {
+        param_names[j] = va_arg(args, const char*);
+        param_values[j] = va_arg(args, char*);
+    }
+
+    va_end(args);
+
+    jsmn_init(&p);
+    r = jsmn_parse(&p, json, strlen(json), t, sizeof(t) / sizeof(t[0]));
+    if (r < 0) {
+        printf("Failed to parse JSON: %d\n", r);
+        return;
+    }
+
+    if (r < 1 || t[0].type != JSMN_OBJECT) {
+        printf("Object expected\n");
+        return;
+    }
+
+    for (i = 1; i < r; i++) {
+        for (int j = 0; j < num_params; j++) {
+            if (jsoneq(json, &t[i], param_names[j]) == 0) {
+                strncpy(param_values[j], json + t[i + 1].start, t[i + 1].end - t[i + 1].start);
+                param_values[j][t[i + 1].end - t[i + 1].start] = '\0'; // Aggiunge il terminatore NULL
+                i++;
+            }
+        }
+    }
+}
+
+
+void from_string_to_json_string_vec(char *input, char *jsonArray[20], int* read_lenght) {
+    size_t len = strlen(input);
+    int jsonCount = 0;
+
+    if (input[0] == '[' && input[len - 1] == ']') {
+        input[len - 1] = '\0';
+        memmove(input, input + 1, len - 2);  
+    }
+
+    char *start = input;
+    char *end = NULL;
+    
+    while ((start = strchr(start, '{')) != NULL) {
+        end = strchr(start, '}');
+        if (end == NULL) {
+            break;
+        }
+
+        size_t tokenLen = end - start + 1; 
+        jsonArray[jsonCount] = (char *)malloc(tokenLen + 1); 
+        if (jsonArray[jsonCount] == NULL) {
+            perror("malloc failed");
+            return;
+        }
+
+        strncpy(jsonArray[jsonCount], start, tokenLen);
+        jsonArray[jsonCount][tokenLen] = '\0'; 
+
+        jsonCount++;
+        start = end + 1; 
+    }
+
+    *read_lenght = jsonCount;
+
+    for (int i = 0; i < jsonCount; i++) {
+        printf("JSON %d: %s\n", i + 1, jsonArray[i]);
+    }
+}
+
+
+void from_string_to_int_array(char *input, int *array, int *size) {
+    for (int i = 0; input[i] != '\0'; i++) {
+        if (input[i] == '[' || input[i] == ']') {
+            input[i] = ' ';
+        }
+    }
+
+    char *token = strtok(input, " ,");
+    int index = 0;
+    while (token != NULL) {
+        array[index++] = atoi(token); 
+        token = strtok(NULL, " ,");
+    }
+    *size = index;
 }

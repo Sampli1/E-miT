@@ -3,8 +3,10 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "env_var.h"
+#include "esp_sntp.h"
 
 #include "wifi.h"
+
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -28,7 +30,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < 10) {
+        if (s_retry_num < 20) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
@@ -97,4 +99,50 @@ void wifi_init_sta(void) {
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
+
+}
+
+// Sync time
+void initialize_sntp(void) {
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org"); 
+    esp_sntp_init();
+}
+
+
+void time_sync() {
+    // CEST 
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+    tzset();
+
+    initialize_sntp();
+
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+    int retry = 0;
+    const int retry_count = 10;
+    while (timeinfo.tm_year < (2023 - 1900) && ++retry < retry_count) {
+        ESP_LOGI("TIME", "Waiting NTP...\n");
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        time(&now);
+        localtime_r(&now, &timeinfo);
+    }
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    struct timeval tv = { .tv_sec = now, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+
+
+    ESP_LOGI("TIME","%02d-%02d-%04d %02d:%02d:%02d\n",
+           timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900,
+           timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+}
+
+
+
+void wifi_and_time_init_sta(void) {
+    wifi_init_sta();
+    time_sync();
 }

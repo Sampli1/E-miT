@@ -6,3 +6,5 @@
 **.sh
 calendars.txt
 **/CMakeCache.txt
+/CMakeFiles
+/icons

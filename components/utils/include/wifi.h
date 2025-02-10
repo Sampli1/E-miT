@@ -10,6 +10,6 @@
 #include "freertos/task.h"
 
 
-void wifi_init_sta(void);
+void wifi_and_time_init_sta(void);
 
 #endif // WIFI_H

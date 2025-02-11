@@ -1,5 +1,5 @@
-#ifndef SERVER_H
-#define SERVER_H
+#ifndef ESP_SERVER_H
+#define ESP_SERVER_H
 
 #include "server_utils.h"
 #include "utils.h"
@@ -11,4 +11,4 @@
 void start_server(void *pvParameters);
 
 
-#endif // SERVER_H
+#endif // ESP_SERVER_H

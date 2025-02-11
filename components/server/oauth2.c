@@ -41,7 +41,7 @@ void refresh_token_management(char *surname) {
     free(body);
 }
 
-void token_management(char *code, char *scope) {
+void token_management(char *code, char *scope, char* id) {
     // Ask token to Google API
     char *body = malloc(sizeof(char) * MAX_POST_BODY_LENGTH);
     void *response;
@@ -86,15 +86,21 @@ void token_management(char *code, char *scope) {
     nvs_handle_t NVS;
     nvs_open("oauth2_tokens", NVS_READWRITE, &NVS);
 
-    char *json_info= calloc(500, sizeof(char));    
+    char at_key[15] = {0}, rt_key[15] = {0};
 
-    sprintf(json_info, "{ \"access_token\": \"%s\", \"refresh_token\": \"%s\"}", access_token, refresh_token);
-    esp_err_t f = nvs_set_str(NVS, surname, json_info);  
+    // NON FUNZIONA DA QUA
+
+    sprintf(at_key, "user_%d_at", atoi(id));
+    sprintf(rt_key, "user_%d_rt", atoi(id));
+
+    esp_err_t f = nvs_set_str(NVS, at_key, access_token);  
+    ESP_LOGI(TAG, "STATUS %d", f);
+    f = nvs_set_str(NVS, rt_key, refresh_token);  
     ESP_LOGI(TAG, "STATUS %d", f);
     nvs_commit(NVS);
-
+    nvs_close(NVS);
+    
     free(body);
-    free(json_info);
     free(access_token);
     free(refresh_token);
 }

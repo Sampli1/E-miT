@@ -12,7 +12,7 @@
 #include "spiffs_handler.h"
 
 #include "server_utils.h"
-#include "server.h"
+#include "esp_server.h"
 #include "utils.h"
 
 static const char *TAG = "SERVER";
@@ -29,13 +29,13 @@ static esp_err_t key_get_handler(httpd_req_t *req) {
         ESP_RETURN_ON_FALSE(buf, ESP_ERR_NO_MEM, TAG, "buffer alloc failed");
         /* Copy null terminated value string into buffer */
         if (httpd_req_get_hdr_value_str(req, "Host", buf, buf_len) == ESP_OK) {
-            ESP_LOGI(TAG, "Found header => Host: %s", buf);
+            // ESP_LOGI(TAG, "Found header => Host: %s", buf);
         }
         free(buf);
     }
 
     buf_len = httpd_req_get_url_query_len(req) + 1;
-    char param[HTTP_QUERY_KEY_MAX_LEN], code[HTTP_QUERY_KEY_MAX_LEN] = {0}, scope[HTTP_QUERY_KEY_MAX_LEN] = {0};
+    char param[HTTP_QUERY_KEY_MAX_LEN], code[HTTP_QUERY_KEY_MAX_LEN] = {0}, scope[HTTP_QUERY_KEY_MAX_LEN] = {0}, id[3] = {0};
 
     if (buf_len > 1) {
         buf = malloc(buf_len);
@@ -53,13 +53,19 @@ static esp_err_t key_get_handler(httpd_req_t *req) {
                 example_uri_decode(scope, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
                 ESP_LOGI(TAG, "Decoded query parameter => %s", scope);
             }
+            if (httpd_query_key_value(buf, "state", param, sizeof(param)) == ESP_OK) {
+                ESP_LOGI(TAG, "Found URL query parameter => id=%s", param);
+                example_uri_decode(id, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
+                ESP_LOGI(TAG, "Decoded query parameter => %s", scope);
+            }
+
         }
         free(buf);
     }
 
 
     // Ask for token and start routine of refreshing, OAUTH2 ROUTINE 
-    token_management(code, scope);
+    token_management(code, scope, id);
 
 
     const char* resp_str = (const char*) req->user_ctx;
@@ -86,7 +92,6 @@ static esp_err_t home_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
-
 static const httpd_uri_t home = {
     .uri = "/",
     .method = HTTP_GET,
@@ -94,13 +99,61 @@ static const httpd_uri_t home = {
     .user_ctx  = "OK!"
 };
 
-
-static esp_err_t get_info_handler(httpd_req_t *req) {
-    httpd_resp_send(req, OAUTH2_LINK, HTTPD_RESP_USE_STRLEN);
-    httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
+// GET METHODs
+esp_err_t get_from_nvs(nvs_handle_t nvs_handler, char *key, char **val, size_t *total_size) {
+    size_t required_size;
+    esp_err_t err;
+    err = nvs_get_str(nvs_handler, key, NULL, &required_size);
+    ESP_LOGI(TAG, "required size: %d", required_size);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        (*val) = (char *) malloc(10 * sizeof(char));
+        sprintf(*val, "NULL");
+    } 
+    if (err == ESP_OK) {
+        (*val) = (char *) malloc(required_size * sizeof(char));
+        *total_size += required_size;
+        err = nvs_get_str(nvs_handler, key, *val, &required_size);
+        ESP_LOGI(TAG, "%s: %s", key, *val);
+    }
+    return err;
 }
 
+static esp_err_t get_info_handler(httpd_req_t *req) {
+    nvs_handle_t nvs_handler;
+    esp_err_t err;
+    err = nvs_open("nvs", NVS_READONLY, &nvs_handler);
+
+    char *city, *user_1, *user_2;
+    char *city_key = "city";
+    char *user_1_key = "user_1";
+    char *user_2_key = "user_2";
+    size_t total_size = 70; // Consider JSON construction
+
+    if (get_from_nvs(nvs_handler, city_key, &city, &total_size) != ESP_OK) ESP_LOGE(TAG, "ERROR: get_info_handler");
+    if (get_from_nvs(nvs_handler, user_1_key, &user_1, &total_size) != ESP_OK) ESP_LOGE(TAG, "ERROR: get_info_handler");
+    if (get_from_nvs(nvs_handler, user_2_key, &user_2, &total_size) != ESP_OK) ESP_LOGE(TAG, "ERROR: get_info_handler");
+
+
+    // build the json
+    char *json_buffer = (char *)malloc((total_size + strlen((const char *)OAUTH2_LINK)) * sizeof(char));
+
+    snprintf(json_buffer, total_size + strlen((const char *) OAUTH2_LINK),
+         "{\"oauth2_link\":\"%s\", \"city\":\"%s\", \"user_1\":\"%s\", \"user_2\":\"%s\"}",
+         OAUTH2_LINK, city, user_1, user_2);
+
+    ESP_LOGI(TAG, "INFO JSON: %s", json_buffer);
+
+    httpd_resp_send(req, json_buffer, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);
+
+    nvs_close(nvs_handler);
+
+    free(city);
+    free(json_buffer);
+    free(user_1);
+    free(user_2);
+    return ESP_OK;
+}
 
 static const httpd_uri_t get_info = {
     .uri = "/get_info",
@@ -109,46 +162,7 @@ static const httpd_uri_t get_info = {
     .user_ctx  = "OK!"
 };
 
-static esp_err_t get_city_handler(httpd_req_t *req) {
-    nvs_handle_t nvs_handler;
-    esp_err_t err;
-    err = nvs_open("nvs", NVS_READONLY, &nvs_handler);
-
-    size_t required_size;
-    err = nvs_get_str(nvs_handler, "city", NULL, &required_size);
-    if (err == ESP_OK) {
-        char *city = malloc(required_size);
-        err = nvs_get_str(nvs_handler, "city", city, &required_size);
-        
-        ESP_LOGI(TAG, "CITY_NAME: %s", city);
-
-        if (err == ESP_OK) {
-            httpd_resp_send(req, city, HTTPD_RESP_USE_STRLEN);
-        } else {
-            httpd_resp_send(req, NULL, HTTPD_RESP_USE_STRLEN);
-        }
-        free(city);
-    } else {
-        httpd_resp_send(req, NULL, HTTPD_RESP_USE_STRLEN);
-    }
-
-    nvs_close(nvs_handler);
-    httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
-}
-
-
-static const httpd_uri_t get_city = {
-    .uri = "/get_city",
-    .method = HTTP_GET,
-    .handler   = get_city_handler,
-    .user_ctx  = "OK!"
-};
-
-void get_weather_url(char url[512], int url_size, char *lat, char *lon) {
-    snprintf(url, url_size, WEATHER_API, lat, lon);
-}
-
+// SET METHODs
 static esp_err_t set_city_handler(httpd_req_t *req) {
     nvs_handle_t nvs_handler;
     esp_err_t err;
@@ -166,7 +180,7 @@ static esp_err_t set_city_handler(httpd_req_t *req) {
 
     char city[50], lat[10], longi[10], url[512] = { 0 };
     decompose_json_dynamic_params(data, 3, "name", city, "lat", lat, "long", longi);
-    get_weather_url(url, 512, lat, longi);
+    snprintf(url, 512, WEATHER_API, lat, longi);
 
     ESP_LOGI(TAG, "WEATHER API FOR %s: %s", city, url);
     
@@ -174,22 +188,14 @@ static esp_err_t set_city_handler(httpd_req_t *req) {
     err = nvs_set_str(nvs_handler, "city", city);
     err = nvs_set_str(nvs_handler, "w_api", url);
 
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Errore nella scrittura dell'API: %s", esp_err_to_name(err));
-    }
-
     err = nvs_commit(nvs_handler);
-
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Errore nel commit dei dati su NVS: %s", esp_err_to_name(err));
-    }
-
 
     nvs_close(nvs_handler);
 
     const char* resp_str = (const char*) req->user_ctx;
     httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, NULL, 0);    
+
     return ESP_OK;
 }
 
@@ -200,11 +206,70 @@ const httpd_uri_t set_city = {
     .user_ctx  = "OK!",
 };
 
+static esp_err_t set_users_handler(httpd_req_t *req) {
+    nvs_handle_t nvs_handler;
+    esp_err_t err;
+    err = nvs_open("nvs", NVS_READWRITE, &nvs_handler);
+    char data[500] = { '\0' };
+    int ret = httpd_req_recv(req, data, 500);
+
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+
+
+    char user_1[50] = { 0 }, user_2[50] = { 0 };
+    decompose_json_dynamic_params(data, 2, "user_1", user_1, "user_2", user_2);
+
+    ESP_LOGI(TAG, "USER 1: %s\tUSER 2: %s", user_1, user_2);
+    
+    
+    err = nvs_set_str(nvs_handler, "user_1", user_1);
+    err = nvs_set_str(nvs_handler, "user_2", user_2);
+
+    err = nvs_commit(nvs_handler);
+
+    nvs_close(nvs_handler);
+
+    const char* resp_str = (const char*) req->user_ctx;
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);    
+
+    return ESP_OK;
+}
+
+const httpd_uri_t set_users = {
+    .uri = "/set_users",
+    .method = HTTP_POST,
+    .handler   = set_users_handler,
+    .user_ctx  = "OK!",
+};
+
+// OTHER METHODs
+
+static esp_err_t restart_esp_handler(httpd_req_t *req) {
+    esp_restart();    
+
+    const char* resp_str = (const char*) req->user_ctx;
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);    
+    return ESP_OK;
+}
+
+const httpd_uri_t restart_esp = {
+    .uri = "/restart_esp",
+    .method = HTTP_GET,
+    .handler   = restart_esp_handler,
+    .user_ctx  = "OK!",
+};
 
 static httpd_handle_t start_webserver() {    
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    
+    config.max_uri_handlers = 10;
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
@@ -215,10 +280,11 @@ static httpd_handle_t start_webserver() {
         httpd_register_uri_handler(server, &key);
         httpd_register_uri_handler(server, &set_calendar);
         httpd_register_uri_handler(server, &set_city);
+        httpd_register_uri_handler(server, &set_users);
+        httpd_register_uri_handler(server, &restart_esp);
         httpd_register_uri_handler(server, &get_calendar);
         httpd_register_uri_handler(server, &user_validity);
         httpd_register_uri_handler(server, &get_info);
-        httpd_register_uri_handler(server, &get_city);
         return server;
     }
 

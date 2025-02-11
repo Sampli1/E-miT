@@ -15,15 +15,15 @@
         }
 
         .header {
-            background-color: #4CAF50; /* Verde */
+            background-color: #4CAF50; 
             padding: 20px;
             width: 100%;
             text-align: center;
         }
 
-        #loginButton {
-            background-color: white; /* Colore del bottone */
-            color: #4CAF50; /* Colore del testo */
+        .header_button {
+            background-color: white; 
+            color: #4CAF50; 
             padding: 15px 32px;
             font-size: 16px;
             border: none;
@@ -31,22 +31,22 @@
             cursor: pointer;
         }
 
-        #loginButton:hover {
-            background-color: #ddd; /* Colore di hover */
+        .header_button:hover {
+            background-color: #ddd; 
         }
 
         .container {
             display: flex;
-            flex-wrap: wrap; /* Permette il wrap per schermi piccoli */
+            flex-wrap: wrap; 
             justify-content: center;
             width: 100%;
             margin-top: 20px;
-            padding: 0 10px; /* Padding laterale per schermi piccoli */
+            padding: 0 10px; 
         }
 
         .section {
-            width: 300px; /* Larghezza fissa per ogni sezione */
-            margin: 10px; /* Margine tra le sezioni */
+            width: 300px;
+            margin: 10px; 
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -55,7 +55,7 @@
         }
 
         input[type="text"] {
-            width: calc(100% - 22px); /* Larghezza dell'input */
+            width: calc(100% - 22px);
             padding: 10px;
             margin-bottom: 10px;
             border: 1px solid #ccc;
@@ -75,106 +75,208 @@
             border-radius: 4px;
         }
 
-        /* Media Query per rendere la pagina responsive */
         @media (max-width: 768px) {
             .section {
-                width: 90%; /* Larghezza delle sezioni su schermi piccoli */
+                width: 90%; 
             }
         }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 50px;
+        }
+
+        .slider {
+            position: relative;
+            width: 60px;
+            height: 34px;
+        }
+
+        .slider input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 50px;
+        }
+
+        .slider input:checked + .slider-round {
+            background-color: #4CAF50;
+        }
+
+        .slider .slider-round:before {
+            content: "";
+            position: absolute;
+            height: 26px;
+            width: 26px;
+            border-radius: 50px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+        }
+
+        .slider input:checked + .slider-round:before {
+            transform: translateX(26px);
+        }
+
     </style>
 </head>
 <body>
     <div class="header">
-        <button id="loginButton" onclick="window.location.href='OAUTH2_LINK'">Accedi</button>
+        <button id="loginButton" class="header_button" onclick="window.location.href='OAUTH2_LINK'">Login</button>
+        <button id="restartButton" class="header_button" onclick="restart()">Restart</button>
     </div>
     <div class="container">
         <div class="section">
             <h2>Città</h2>
             <input type="text" id="inputBox0" placeholder="Scrivi nome città">
-            <button onclick="convertCityToCoordinates('inputBox0')">Aggiungi</button>
+            <button onclick="convertCityToCoordinates('inputBox0')">Imposta</button>
             <h3 id="city"></h3>
+        </div>
+        <div class="section">
+            <h2>GTT</h2>
+            <div class="slider-container">
+                <label class="slider">
+                    <input type="checkbox" onchange="() => setGtt(this)">
+                    <span class="slider-round"></span>
+                </label>
+            </div>
         </div>
     </div>
     <div class="container">
         <div class="section">
-            <h2>Sandro</h2>
-            <input type="text" id="inputBox1" placeholder="Metti id calendario">
-            <button onclick="addItem('itemList1', 'inputBox1')">Aggiungi</button>
+            <h2>Aggiungi Nomi</h2>
+
+            <div>
+                <input type="text" id="nameInput" placeholder="Scrivi un nome" maxlength="14">
+                <button onclick="addName()">Invia</button>
+            </div>
+
+            <div class="box-container" id="boxContainer">
+                <!-- user_1 -->
+                <!-- user_2 -->
+            </div>
+        </div>
+        
+    </div>
+    <div class="container">
+        <div class="section">
+            <h2>Seleziona calendari:</h2>
+            <h2 id="user_1"></h2>
             <ul id="itemList1"></ul>
         </div>
 
         <div class="section">
-            <h2>Alessia</h2>
-            <input type="text" id="inputBox2" placeholder="Metti id calendario">
-            <button onclick="addItem('itemList2', 'inputBox2')">Aggiungi</button>
+            <h2>Seleziona calendari:</h2>
+            <h2 id="user_2"></h2>
             <ul id="itemList2"></ul>
         </div>
     </div>
 
     <script>
-        function loadStart() {
-            fetch('/get_info', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'x-www-form-urlencoded'
-                },
-            })
-            .then((res) => res.text())
-            .then(resText => {
-                console.log(resText);
-                document.querySelector("#loginButton").setAttribute("onclick", `window.location.href='${resText}'`);
-            });
+        let start_info = Object();
+        let new_info = Object(); 
+        let nameCount = 0;
 
-            fetch('/get_calendar?name=SANDRO')
-                .then(response => response.text())
-                .then(response => {
-                    if (response.length == 0) return;
+        function checkIfUpdate() {
 
-                    console.log(response);
-                    let calendars = String(response).split(" ");
-                    console.log(calendars);
-                    const itemList = document.getElementById("itemList1");
+            deepCompare = (arg1, arg2) => {
+                if (Object.prototype.toString.call(arg1) === Object.prototype.toString.call(arg2)){
+                    if (Object.prototype.toString.call(arg1) === '[object Object]' || Object.prototype.toString.call(arg1) === '[object Array]' ){
+                    if (Object.keys(arg1).length !== Object.keys(arg2).length ){
+                        return false;
+                    }
+                    return (Object.keys(arg1).every(function(key){
+                        return deepCompare(arg1[key],arg2[key]);
+                    }));
+                    }
+                    return (arg1===arg2);
+                }
+                return false;
+            }
 
-                    calendars.forEach(calendar => {
-                        const newItem = document.createElement("li");
-                        newItem.textContent = calendar;
-                        itemList.appendChild(newItem);
-                    });
-                })
-                .catch(error => console.error("Errore nel caricamento dei calendari:", error));
-            
-            fetch('/get_calendar?name=ALESSIA')
-                .then(response => response.text())
-                .then(response => {
-                    console.log(response);
-                    if (response.length === 0) return;
-                    let calendars = String(response).split(" ");
-                    
-                    const itemList = document.getElementById("itemList2");
 
-                    calendars.forEach(calendar => {
-                        const newItem = document.createElement("li");
-                        newItem.textContent = calendar;
-                        itemList.appendChild(newItem);
-                    });
-                })
-                .catch(error => console.error("Errore nel caricamento dei calendari:", error));
-
-                
-            fetch('/get_city', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'x-www-form-urlencoded'
-                },
-            })
-            .then(response => response.text())
-            .then(response => {
-                let h3 = document.querySelector(".city");
-                h3.textContent = response;
-            });
+            let restartButton = document.querySelector("#restartButton");
+            restartButton.disabled = deepCompare(start_info, new_info);
         }
 
-        function addItem(listId, inputBoxId) {
+        async function initCalendars(no) {
+            if (start_info[`user_${no}`] != 'NULL') {
+                document.querySelector(`#user_${no}`).textContent = start_info[`user_${no}`];
+                appendName(start_info[`user_${no}`]);
+                nameCount++;
+                
+                const itemList = document.getElementById(`itemList${no}`);
+                try {
+                    const response = await fetch(`/get_calendar?name=${start_info[`user_${no}`]}`)
+                    if (response.ok) {
+                        const calendars = String(await response.text()).split(" ");
+                        console.log(calendars);
+                        calendars.forEach(calendar => {
+                            const newItem = document.createElement("li");
+                            newItem.textContent = calendar;
+                            itemList.appendChild(newItem);
+                        });
+                        start_info = {
+                            ...start_info,
+                            [`user_${no}_calendars`]: calendars,
+                        };
+                    }
+                }
+                catch (err) {
+                    console.log(err);
+                    
+                    const button = document.createElement("button");
+                    button.id = `user_${no}`;
+                    button.className = "header_button";
+                    button.textContent = "Login";
+
+                    button.onclick = () => {
+                        window.location.href = start_info["oauth2_link"].replace("%d", no);
+                    };
+
+                    itemList.append(button); 
+                }
+            }
+        }
+
+        async function loadStart() {
+            const res = await fetch('/get_info', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            });
+            const resText = await res.text();
+            
+            console.log(resText);
+            start_info = JSON.parse(resText);
+
+            initCalendars(1);
+            initCalendars(2);
+
+            if (start_info["user_1_calendars"] == undefined) start_info["user_1_calendars"] = [];
+            if (start_info["user_2_calendars"] == undefined) start_info["user_2_calendars"] = [];
+
+            new_info = JSON.parse(JSON.stringify(start_info));
+
+            checkIfUpdate();
+        }
+
+        async function addItem(user_calendar_key, listId, inputBoxId) {
             const inputBox = document.getElementById(inputBoxId);
             const itemList = document.getElementById(listId);
 
@@ -182,54 +284,146 @@
             newItem.textContent = inputBox.value;
             itemList.appendChild(newItem);
 
-            fetch('/set_calendar', {
+            const response = await fetch('/set_calendar', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ item: inputBox.value })
-            }).then(response => {
-                if (response.ok) {
-                    console.log("Elemento salvato nel backend");
-                } else {
-                    console.error("Errore nel salvataggio");
-                }
             });
 
+            if (response.ok) {
+                console.log("New calendar added")
+                new_info = {
+                    ...new_info,
+                    [user_calendar_key]: [...new_info[user_calendar_key], inputBox.value]
+                };
+
+            } else {
+                console.error("Errore nel salvataggio");
+            }
+
+
             inputBox.value = "";
+            
+            checkIfUpdate();
         }
 
-        function convertCityToCoordinates(inputBoxId) {
+        async function convertCityToCoordinates(inputBoxId) {
             const inputBox = document.getElementById(inputBoxId);
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${inputBox.value}&format=json`);
+            const response = await res.json();
 
-            fetch(`https://nominatim.openstreetmap.org/search?q=${inputBox.value}&format=json`)
-            .then((res) => res.text())
-            .then((res) => {  
-                response = JSON.parse(res);
-                if (response.length == 0) {
-                    alert("I can not find this city!"); 
+            if (response.length === 0) {
+                alert("I can not find this city!"); 
+                return;
+            }
+
+            console.log(response[0]);
+            const body = {
+                name: inputBox.value,
+                lat: (+response[0].lat).toFixed(3),
+                long: (+response[0].lon).toFixed(3),
+            };
+
+            // Invia i dati al server
+            const postResponse = await fetch('/set_city', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (postResponse.ok) {
+                console.log("City set");
+                let h3 = document.querySelector("#city");
+                h3.textContent = inputBox.value;
+
+                new_info = {
+                    ...new_info,
+                    "city": inputBox.value
+                };
+                console.log(new_info);
+            } else {
+                console.error("Some problems occurred");
+            }
+
+
+            checkIfUpdate();
+        }
+
+        function restart() {
+            fetch("/restart_esp");
+            // The website will not work anymore for about 10 seconds I think
+            alert("ESP is refreshing, wait about 10s")
+            setTimeout(() => window.location.reload(), 10000);
+        }
+
+        function appendName(name) {
+            const boxContainer = document.getElementById("boxContainer");
+
+            const nameBox = document.createElement("div");
+            nameBox.className = "name-box";
+            nameBox.innerHTML = `${name} <button class="close-btn" onclick="removeName(this)">X</button>`;
+
+            boxContainer.appendChild(nameBox);
+            nameInput.value = "";
+        }
+
+        async function addName() {
+            const nameInput = document.getElementById("nameInput");
+            const name = nameInput.value.trim();
+            const maxMessage = document.getElementById("maxMessage");
+
+            switch (nameCount) {
+                case 0:
+                    new_info = {
+                        ...new_info,
+                        "user_1": name
+                    };
+                    break;
+                case 1:
+                    new_info = {
+                        ...new_info,
+                        "user_2": name
+                    };
+                    break;
+                case 2:
+                    alert("2 users max");
                     return;
-                }
-                console.log(response[0]);
-                body = {
-                    name: inputBox.value,
-                    lat: (+response[0].lat).toFixed(3),
-                    long: (+response[0].lon).toFixed(3),
-                }
-                fetch('/set_city', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(body)
-                }).then(response => {
-                    if (response.ok) {
-                        console.log("City set");
-                    } else {
-                        console.error("Some problems occur");
-                    }
-                });
-            })
+            }
+
+            if (name && nameCount < 2) {
+                nameCount++;
+                appendName(name);
+            }
+
+            let body = {
+                user_1: new_info["user_1"],
+                user_2: new_info["user_2"],
+            }
+            const response = await fetch('/set_users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (response.ok) {
+                document.querySelector("#user_1").textContent = new_info["user_1"];
+                document.querySelector("#user_2").textContent = new_info["user_2"];
+            }
+            
+        }
+
+        function removeName(button) {
+            const nameBox = button.parentElement;
+            nameBox.remove();
+            nameCount--;
+            document.getElementById("maxMessage").textContent = "";
+            
         }
 
         window.addEventListener('DOMContentLoaded', loadStart);

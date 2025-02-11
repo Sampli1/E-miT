@@ -13,8 +13,7 @@
 
 
 extern "C" {
-    #include "client.h"
-    #include "server.h"
+    #include "esp_server.h"
     #include "spiffs_handler.h"
     #include "peripherals.h"
     #include "wifi.h"
@@ -49,12 +48,12 @@ void app_main(void) {
     client_http_mutex = xSemaphoreCreateMutex();
 
     // Routine to start getting screen resources and display it
-    xTaskCreate(start_screen, "SCREEN", 8 * 1024, NULL, 5, NULL);
+    // xTaskCreate(start_screen, "SCREEN", 8 * 1024, NULL, 5, NULL);
 
     // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 4 * 1024, NULL, 4, NULL);
+    xTaskCreate(start_server, "SERVER", 1024 * 16, NULL, 1, NULL);
 
     // Routine of peripherals
-    xTaskCreate(start_gpio, "GPIO", 4 * 1024, NULL, 4, NULL);
+    // xTaskCreate(start_gpio, "GPIO", 1024, NULL, 4, NULL);
 }
 

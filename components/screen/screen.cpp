@@ -27,7 +27,7 @@ static const char *TAG = "SCREEN";
 
 extern "C" {
     #include "client.h"
-    #include "server.h"  
+    #include "esp_server.h"  
     #include "utils.h"
 };
 

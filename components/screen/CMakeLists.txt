@@ -6,4 +6,5 @@ idf_component_register(SRCS "resources.cpp" "screen.cpp"
                         utils
                         CalEPD
                         Adafruit-GFX
+                        nvs_flash
                     )

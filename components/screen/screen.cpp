@@ -1,15 +1,25 @@
 #include <stdio.h>
+#include <malloc.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string>
+#include <nvs_flash.h>
+
 
 #include "screen.hpp"
 #include "icons_128x128.h"
 #include "gdew075T7.h"
+#include "Fonts/FreeMonoBold9pt7b.h"
+#include "Fonts/FreeSans9pt7b.h"
 #include "Fonts/FreeMonoBold12pt7b.h"
+#include "Fonts/FreeMonoBold18pt7b.h"
 
 
-#define MAX_GTT_INFO 3
+#define MAX_GTT_INFO 3 
+#define SCREEN_WIDTH 720
+#define SCREEN_HEIGHT 480
+#define HOURS_IN_A_DAY 24
 
 
 static const char *TAG = "SCREEN";
@@ -110,9 +120,9 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
 
 
 void write_gtt() {
-    int col1_x = 50;
-    int col2_x = 250;
-    int top_y = 300;
+    int col1_x = 550;
+    int col2_x = 675;
+    int top_y = 100;
     int row_spacing = 30;
     
     display.setCursor(col1_x, top_y);
@@ -151,12 +161,28 @@ void write_gtt() {
 
 }
 
+void get_city_info(char weather_api[512], char city_name[50]) {
+    nvs_handle_t nvs_handler;
+    esp_err_t err;
+    err = nvs_open("nvs", NVS_READONLY, &nvs_handler);
+
+    size_t value;
+    err = nvs_get_str(nvs_handler, "city", city_name, &value);
+    if (value > 50) {
+        ESP_LOGE(TAG, "DO YOU LIVE IN AOTHURIAEIGNIEUBNGRIrgeoiqegi?");
+        exit(1);
+    }
+
+    size_t value_len = 512; 
+    err = nvs_get_str(nvs_handler, "w_api", weather_api, &value_len);
+
+    ESP_LOGI(TAG, "WHEATHER API FOR %s: %s", city_name, weather_api);
+    nvs_close(nvs_handler);
+}
+
 
 void write_meteo(struct tm timeinfo) {
     char *weather = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
-    int top_y = 30;
-    int top_x = 30;
-    int row_spacing = 30;
     char *hourly = (char *) calloc(1000, sizeof(char));
     char *temperatures = (char *) calloc(200, sizeof(char));
     char *precipitations = (char *) calloc(200, sizeof(char));
@@ -166,9 +192,14 @@ void write_meteo(struct tm timeinfo) {
     int precipitations_values[24];
     int wheaters_values[24];
 
+    char weather_api[512] = {'\0'}, city_name[50];
+    get_city_info(weather_api, city_name);
+
+
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-        ESP_LOGI(TAG, "Chiamo lui: %s", WEATHER_API);  
-        get_api(weather, WEATHER_API, client_http, NULL, NULL, 0);
+        ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
+
+        get_api(weather, weather_api, client_http, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
  
@@ -180,20 +211,82 @@ void write_meteo(struct tm timeinfo) {
     from_string_to_int_array(precipitations, precipitations_values, &dim);
     from_string_to_int_array(wheaters, wheaters_values, &dim);
 
+    // Meteo icons and values 
+
     int icon_val = wheaters_values[timeinfo.tm_hour];
     const unsigned char *icon = write_weather_icon(icon_val);
     int temperature = temperatures_values[timeinfo.tm_hour];
 
-    ESP_LOGI(TAG,"temperature: %d", temperature);
+    int x_pos = 5, y_pos = 22;
+    display.setCursor(x_pos, y_pos);
+    display.setFont(&FreeMonoBold18pt7b);
+    x_pos = display.getCursorX();
 
-    display.drawBitmap(top_x, top_y, icon, 128, 128, EPD_BLACK);
-    display.setCursor(top_x + 128, top_y);
-    
-    display.print("Torino");
-    display.setCursor(top_x + 128, top_y + row_spacing);
+
+
+    display.println(city_name);
+    y_pos = display.getCursorY();
+    display.setCursor(x_pos, y_pos);
     char temperature_to_display[30] = { '\0' };
-    sprintf(temperature_to_display ,"Temperatura: %d °C", temperature);
+    sprintf(temperature_to_display ,"%d", temperature);    
     display.print(temperature_to_display);
+    display.setFont(&FreeMonoBold9pt7b);
+    display.setTextSize(1);
+    display.print(" ");
+    x_pos = display.getCursorX();
+    y_pos = display.getCursorY();
+    display.setCursor(x_pos, y_pos - 12);
+    display.print("o");
+    x_pos = display.getCursorX();
+    display.setFont(&FreeMonoBold18pt7b);
+    display.setCursor(x_pos, y_pos);
+    display.println("C");
+    x_pos = 5;
+    display.drawBitmap(x_pos, y_pos, icon, 128, 128, EPD_BLACK);
+
+    // Rain probability chart => chart of 240 px width and 50 px heighs
+    display.setFont(&FreeSans9pt7b);
+    display.setTextSize(1);
+    const int x_base = 230;
+    const int y_base = 150;
+    display.setCursor(x_base, 22);
+    display.print("Probabilita' di pioggia");
+    const int chart_witdth = 240;
+    const int chart_height = 100;
+    char buffer[10] = { '\0' };
+
+    for (int w = 0; w < 3; w++) display.drawLine(x_base, y_base - w, x_base + chart_witdth , y_base - w, EPD_BLACK);
+
+    for (int w = 0; w < 3; w++) display.drawLine(x_base - w, y_base, x_base - w, y_base - chart_height, EPD_BLACK);
+
+    // Y-axes
+    for (int i = 0; i <= 100; i += 25) {
+        y_pos = y_base - ((i / 100.0f) * chart_height);
+        display.setCursor(x_base - 30, y_pos - 3);
+        sprintf(buffer, "%d", i);
+        display.print(buffer);
+        display.drawLine(x_base - 4, y_pos, x_base, y_pos, EPD_BLACK);
+    }
+
+    // X-axes
+    for (int i = 0; i < 24; i += 6) {
+        x_pos = x_base + (i * 10);
+        display.setCursor(x_pos - 15, y_base + 15);
+        sprintf(buffer, "%d:00", i);
+        display.print(buffer);
+        display.drawLine(x_pos, y_base + 4, x_pos, y_base, EPD_BLACK);
+    }
+    
+    int ex_value;
+    for (int i = 0; i < HOURS_IN_A_DAY; i++) {
+        int value = (int) ((precipitations_values[i] / 100.0f) * chart_height);
+        display.drawPixel(x_base - (i * 10), y_base - value, EPD_BLACK);
+        if (i > 0) for (int w = 0; w < 3; w++) display.drawLine(x_base + ((i - 1) * 10), y_base - ex_value - w, x_base + (i * 10), y_base - value - w, EPD_BLACK);
+        ex_value = value;
+    }
+
+    display.setFont(&FreeMonoBold12pt7b);
+    display.setTextSize(1);
 }
 
 void write_calendar() {
@@ -204,15 +297,13 @@ void write_calendar() {
 void write_time(struct tm timeinfo) {
     char strftime_buf[64];
     display.setCursor(12, 12);
-    strftime(strftime_buf, sizeof(strftime_buf), "%d-%m-%Y %H:%M:%S", &timeinfo);
-    ESP_LOGI(TAG, "Date: %s", strftime_buf);
+    strftime(strftime_buf, sizeof(strftime_buf), "%H:%M", &timeinfo);
+    ESP_LOGI(TAG, "%s", strftime_buf);
     display.print(strftime_buf);
 }
 
 void start_screen(void *pvParameters) {
     display.init(true);
-
-    delay(5000);
 
     // Config
     display.setTextSize(1);
@@ -228,7 +319,7 @@ void start_screen(void *pvParameters) {
 
 
 
-    write_time(timeinfo);
+    // write_time(timeinfo);
     write_meteo(timeinfo);
     write_gtt();
     write_calendar();

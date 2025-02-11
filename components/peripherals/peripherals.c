@@ -17,7 +17,6 @@ void start_gpio(void *pvParameters) {
 
     int cnt = 0;
     while (1) {
-        printf("cnt: %d\n", cnt++);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         gpio_set_level(32, cnt % 2);
     }

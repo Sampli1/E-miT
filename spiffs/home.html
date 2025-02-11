@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pagina con Input List</title>
+    <title>Home</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -87,7 +87,14 @@
     <div class="header">
         <button id="loginButton" onclick="window.location.href='OAUTH2_LINK'">Accedi</button>
     </div>
-
+    <div class="container">
+        <div class="section">
+            <h2>Città</h2>
+            <input type="text" id="inputBox0" placeholder="Scrivi nome città">
+            <button onclick="convertCityToCoordinates('inputBox0')">Aggiungi</button>
+            <h3 id="city"></h3>
+        </div>
+    </div>
     <div class="container">
         <div class="section">
             <h2>Sandro</h2>
@@ -152,6 +159,19 @@
                     });
                 })
                 .catch(error => console.error("Errore nel caricamento dei calendari:", error));
+
+                
+            fetch('/get_city', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'x-www-form-urlencoded'
+                },
+            })
+            .then(response => response.text())
+            .then(response => {
+                let h3 = document.querySelector(".city");
+                h3.textContent = response;
+            });
         }
 
         function addItem(listId, inputBoxId) {
@@ -177,6 +197,39 @@
             });
 
             inputBox.value = "";
+        }
+
+        function convertCityToCoordinates(inputBoxId) {
+            const inputBox = document.getElementById(inputBoxId);
+
+            fetch(`https://nominatim.openstreetmap.org/search?q=${inputBox.value}&format=json`)
+            .then((res) => res.text())
+            .then((res) => {  
+                response = JSON.parse(res);
+                if (response.length == 0) {
+                    alert("I can not find this city!"); 
+                    return;
+                }
+                console.log(response[0]);
+                body = {
+                    name: inputBox.value,
+                    lat: (+response[0].lat).toFixed(3),
+                    long: (+response[0].lon).toFixed(3),
+                }
+                fetch('/set_city', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                }).then(response => {
+                    if (response.ok) {
+                        console.log("City set");
+                    } else {
+                        console.error("Some problems occur");
+                    }
+                });
+            })
         }
 
         window.addEventListener('DOMContentLoaded', loadStart);

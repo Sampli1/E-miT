@@ -13,6 +13,7 @@
 
 #include "server_utils.h"
 #include "server.h"
+#include "utils.h"
 
 static const char *TAG = "SERVER";
 
@@ -95,7 +96,6 @@ static const httpd_uri_t home = {
 
 
 static esp_err_t get_info_handler(httpd_req_t *req) {
-    char* response = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     httpd_resp_send(req, OAUTH2_LINK, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
@@ -109,6 +109,96 @@ static const httpd_uri_t get_info = {
     .user_ctx  = "OK!"
 };
 
+static esp_err_t get_city_handler(httpd_req_t *req) {
+    nvs_handle_t nvs_handler;
+    esp_err_t err;
+    err = nvs_open("nvs", NVS_READONLY, &nvs_handler);
+
+    size_t required_size;
+    err = nvs_get_str(nvs_handler, "city", NULL, &required_size);
+    if (err == ESP_OK) {
+        char *city = malloc(required_size);
+        err = nvs_get_str(nvs_handler, "city", city, &required_size);
+        
+        ESP_LOGI(TAG, "CITY_NAME: %s", city);
+
+        if (err == ESP_OK) {
+            httpd_resp_send(req, city, HTTPD_RESP_USE_STRLEN);
+        } else {
+            httpd_resp_send(req, NULL, HTTPD_RESP_USE_STRLEN);
+        }
+        free(city);
+    } else {
+        httpd_resp_send(req, NULL, HTTPD_RESP_USE_STRLEN);
+    }
+
+    nvs_close(nvs_handler);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+
+static const httpd_uri_t get_city = {
+    .uri = "/get_city",
+    .method = HTTP_GET,
+    .handler   = get_city_handler,
+    .user_ctx  = "OK!"
+};
+
+void get_weather_url(char url[512], int url_size, char *lat, char *lon) {
+    snprintf(url, url_size, WEATHER_API, lat, lon);
+}
+
+static esp_err_t set_city_handler(httpd_req_t *req) {
+    nvs_handle_t nvs_handler;
+    esp_err_t err;
+    err = nvs_open("nvs", NVS_READWRITE, &nvs_handler);
+    char data[500] = { '\0' };
+    int ret = httpd_req_recv(req, data, 500);
+
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+
+
+    char city[50], lat[10], longi[10], url[512] = { 0 };
+    decompose_json_dynamic_params(data, 3, "name", city, "lat", lat, "long", longi);
+    get_weather_url(url, 512, lat, longi);
+
+    ESP_LOGI(TAG, "WEATHER API FOR %s: %s", city, url);
+    
+    
+    err = nvs_set_str(nvs_handler, "city", city);
+    err = nvs_set_str(nvs_handler, "w_api", url);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Errore nella scrittura dell'API: %s", esp_err_to_name(err));
+    }
+
+    err = nvs_commit(nvs_handler);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Errore nel commit dei dati su NVS: %s", esp_err_to_name(err));
+    }
+
+
+    nvs_close(nvs_handler);
+
+    const char* resp_str = (const char*) req->user_ctx;
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);    
+    return ESP_OK;
+}
+
+const httpd_uri_t set_city = {
+    .uri = "/set_city",
+    .method = HTTP_POST,
+    .handler   = set_city_handler,
+    .user_ctx  = "OK!",
+};
 
 
 static httpd_handle_t start_webserver() {    
@@ -124,9 +214,11 @@ static httpd_handle_t start_webserver() {
         httpd_register_uri_handler(server, &home);
         httpd_register_uri_handler(server, &key);
         httpd_register_uri_handler(server, &set_calendar);
+        httpd_register_uri_handler(server, &set_city);
         httpd_register_uri_handler(server, &get_calendar);
         httpd_register_uri_handler(server, &user_validity);
         httpd_register_uri_handler(server, &get_info);
+        httpd_register_uri_handler(server, &get_city);
         return server;
     }
 

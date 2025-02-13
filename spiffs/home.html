@@ -221,7 +221,7 @@
                 
                 const itemList = document.getElementById(`itemList${no}`);
                 try {
-                    const response = await fetch(`/get_calendar?name=${start_info[`user_${no}`]}`)
+                    const response = await fetch(`/get_calendar?name=${start_info[`user_${no}`]}&id=${no}`)
                     if (response.ok) {
                         const calendars = String(await response.text()).split(" ");
                         console.log(calendars);
@@ -235,8 +235,12 @@
                             [`user_${no}_calendars`]: calendars,
                         };
                     }
+                    else {
+                        throw new Error(`Errore ${response.status}`);
+                    }
                 }
                 catch (err) {
+                    console.log("Errore")
                     console.log(err);
                     
                     const button = document.createElement("button");
@@ -424,6 +428,16 @@
             nameCount--;
             document.getElementById("maxMessage").textContent = "";
             
+        }
+
+        function setGtt() {
+            const statusElement = document.getElementById("status");
+
+            if (checkbox.checked) {
+                statusElement.textContent = "ON";
+            } else {
+                statusElement.textContent = "OFF";
+            }
         }
 
         window.addEventListener('DOMContentLoaded', loadStart);

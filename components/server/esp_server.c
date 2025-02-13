@@ -14,6 +14,7 @@
 #include "server_utils.h"
 #include "esp_server.h"
 #include "utils.h"
+#include "calendar.h"
 
 static const char *TAG = "SERVER";
 
@@ -100,24 +101,6 @@ static const httpd_uri_t home = {
 };
 
 // GET METHODs
-esp_err_t get_from_nvs(nvs_handle_t nvs_handler, char *key, char **val, size_t *total_size) {
-    size_t required_size;
-    esp_err_t err;
-    err = nvs_get_str(nvs_handler, key, NULL, &required_size);
-    ESP_LOGI(TAG, "required size: %d", required_size);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        (*val) = (char *) malloc(10 * sizeof(char));
-        sprintf(*val, "NULL");
-    } 
-    if (err == ESP_OK) {
-        (*val) = (char *) malloc(required_size * sizeof(char));
-        *total_size += required_size;
-        err = nvs_get_str(nvs_handler, key, *val, &required_size);
-        ESP_LOGI(TAG, "%s: %s", key, *val);
-    }
-    return err;
-}
-
 static esp_err_t get_info_handler(httpd_req_t *req) {
     nvs_handle_t nvs_handler;
     esp_err_t err;

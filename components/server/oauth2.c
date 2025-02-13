@@ -88,15 +88,18 @@ void token_management(char *code, char *scope, char* id) {
 
     char at_key[15] = {0}, rt_key[15] = {0};
 
-    // NON FUNZIONA DA QUA
+    // NON FUNZIONA DA QUA (ogni tanto, perché?)
 
+    ESP_LOGI(TAG, "ID %d", atoi(id));
+    
     sprintf(at_key, "user_%d_at", atoi(id));
     sprintf(rt_key, "user_%d_rt", atoi(id));
 
-    esp_err_t f = nvs_set_str(NVS, at_key, access_token);  
+    esp_err_t f = nvs_set_str(NVS, at_key, access_token);
     ESP_LOGI(TAG, "STATUS %d", f);
     f = nvs_set_str(NVS, rt_key, refresh_token);  
     ESP_LOGI(TAG, "STATUS %d", f);
+    
     nvs_commit(NVS);
     nvs_close(NVS);
     

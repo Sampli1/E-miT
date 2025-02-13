@@ -51,7 +51,7 @@ void app_main(void) {
     // xTaskCreate(start_screen, "SCREEN", 8 * 1024, NULL, 5, NULL);
 
     // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 1024 * 16, NULL, 1, NULL);
+    xTaskCreate(start_server, "SERVER", 1024 * 50, NULL, 1, NULL);
 
     // Routine of peripherals
     // xTaskCreate(start_gpio, "GPIO", 1024, NULL, 4, NULL);

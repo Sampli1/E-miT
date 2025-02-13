@@ -95,14 +95,16 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
     // Free body
     esp_http_client_set_post_field(client, '\0', 0);
 
-
+    int status = 1;
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+        status = 0;
     } else {
         content_length = esp_http_client_fetch_headers(client);
         if (content_length < 0) {
             ESP_LOGE(TAG, "HTTP client fetch headers failed");
+            status = 0;
         } else {
             int data_read = esp_http_client_read_response(client, content, MAX_HTTP_OUTPUT_BUFFER);
             if (data_read >= 0) {
@@ -110,13 +112,17 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
                 esp_http_client_get_status_code(client),
                 esp_http_client_get_content_length(client));
                 ESP_LOGI(TAG, "%s", content);
+                if (esp_http_client_get_content_length(client) >= 400) status = 0;
             } else {
                 ESP_LOGE(TAG, "Failed to read response");
+                status = 0; 
             }
         }
     }
     esp_http_client_close(client);
-    return 1;
+    esp_http_client_cleanup(client);
+    start_http_client();
+    return status;
 }
 
 
@@ -144,7 +150,7 @@ int post_api(const char *post_data, const char* api_address, esp_http_client_han
 
 void start_http_client() {
     const char* cert = read_from_spiffs("/spiffs/madbob-org-chain.pem");
-    static char user_data[MAX_HTTP_OUTPUT_BUFFER] = { 0 };
+    static char user_data[8192] = { 0 };
 
     esp_http_client_config_t config = { 
         .url= WEATHER_API,

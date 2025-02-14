@@ -112,7 +112,10 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
                 esp_http_client_get_status_code(client),
                 esp_http_client_get_content_length(client));
                 ESP_LOGI(TAG, "%s", content);
-                if (esp_http_client_get_content_length(client) >= 400) status = 0;
+                if (esp_http_client_get_status_code(client) >= 400) {
+                    ESP_LOGE(TAG, "Error %d", esp_http_client_get_status_code(client));
+                    status = 0;
+                }
             } else {
                 ESP_LOGE(TAG, "Failed to read response");
                 status = 0; 
@@ -120,8 +123,6 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
         }
     }
     esp_http_client_close(client);
-    esp_http_client_cleanup(client);
-    start_http_client();
     return status;
 }
 

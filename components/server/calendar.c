@@ -26,6 +26,34 @@ esp_err_t get_from_nvs(nvs_handle_t nvs_handler, char *key, char **val, size_t *
     return err;
 }
 
+void decompose_calendar_names(char *calendar_response, char *calendar_names) {
+    char *items = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
+    char *title = calloc(1024, sizeof(char));
+    char *id = calloc(1024, sizeof(char));
+    char *buffer = calloc(1024* 5, sizeof(char));
+    char *json_vec[20];
+    for (int i= 0; i < 20; i++) json_vec[i] =  calloc(1024 , sizeof(char));
+    int length = 0;
+
+    decompose_json_dynamic_params(calendar_response,1, "items", items);
+    from_string_to_json_string_vec(items, json_vec, &length);
+
+
+    for (int i = 0; i < length; i++) {
+        decompose_json_dynamic_params(json_vec[i], 2, "id", id, "summary", title);
+        ESP_LOGI(TAG, "Title: %s, Id: %s", title, id);
+
+        sprintf(buffer, "%s{\"title\": \"%s\", \"id\": \"%s\"}", (i > 0 ? "," : ""), title, id);
+
+        strcat(calendar_names, buffer);
+    }
+
+    free(title);
+    free(items);
+    free(id);
+    free(buffer);
+    for (int i = 0; i < 20; i++) free(json_vec[i]);
+}
 
 static esp_err_t get_calendar_handler(httpd_req_t *req) {
     nvs_handle_t NVS;
@@ -88,12 +116,13 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
 
     sprintf(headers_values[1], "Bearer %s", access_token);
 
-    for (int i = 0; i < headers_length; i++) ESP_LOGI(TAG, "{%s : %s}", headers_keys[i], headers_values[i]);
-
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         if (!get_api(response, CALENDAR_LIST_LINK, client_http, headers_keys, headers_values, 2)) {
             free(access_token);
             free(response);
+            nvs_close(NVS);
+            httpd_resp_send_404(req);
+            xSemaphoreGive(client_http_mutex); // <=== I'm a retard
             return ESP_FAIL;
         }
         xSemaphoreGive(client_http_mutex);
@@ -101,6 +130,17 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
 
     ESP_LOGI(TAG, "CALENDARS: %s", response);   
 
+    
+    char *calendar_names = calloc(1024 * 20 + 20, sizeof(char));
+
+    strcat(calendar_names, "[");
+    decompose_calendar_names(response, calendar_names);
+    strcat(calendar_names, "]");
+
+
+    httpd_resp_send(req, calendar_names, HTTPD_RESP_USE_STRLEN);
+
+    free(calendar_names);
     free(access_token);
     free(response);
     nvs_close(NVS);

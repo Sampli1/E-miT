@@ -90,6 +90,7 @@ static esp_err_t home_handler(httpd_req_t *req) {
     
     httpd_resp_send(req, html_content, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, NULL, 0);
+    free(html_content);
     return ESP_OK;
 }
 
@@ -104,7 +105,7 @@ static const httpd_uri_t home = {
 static esp_err_t get_info_handler(httpd_req_t *req) {
     nvs_handle_t nvs_handler;
     esp_err_t err;
-    err = nvs_open("nvs", NVS_READONLY, &nvs_handler);
+    err = nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
     char *city, *user_1, *user_2;
     char *city_key = "city";
@@ -113,9 +114,17 @@ static esp_err_t get_info_handler(httpd_req_t *req) {
     size_t total_size = 70; // Consider JSON construction
 
     if (get_from_nvs(nvs_handler, city_key, &city, &total_size) != ESP_OK) ESP_LOGE(TAG, "ERROR: get_info_handler");
-    if (get_from_nvs(nvs_handler, user_1_key, &user_1, &total_size) != ESP_OK) ESP_LOGE(TAG, "ERROR: get_info_handler");
-    if (get_from_nvs(nvs_handler, user_2_key, &user_2, &total_size) != ESP_OK) ESP_LOGE(TAG, "ERROR: get_info_handler");
+    if (get_from_nvs(nvs_handler, user_1_key, &user_1, &total_size) != ESP_OK) {
+       ESP_LOGE(TAG, "ERROR: get_info_handler");
+    }
+    if (get_from_nvs(nvs_handler, user_2_key, &user_2, &total_size) != ESP_OK) {
+        ESP_LOGE(TAG, "ERROR: get_info_handler");
+    }
 
+
+    ESP_LOGI(TAG, "city: %s", city);
+    ESP_LOGI(TAG, "us_1: %s", user_1);
+    ESP_LOGI(TAG, "us_2: %s", user_2);
 
     // build the json
     char *json_buffer = (char *)malloc((total_size + strlen((const char *)OAUTH2_LINK)) * sizeof(char));
@@ -149,7 +158,7 @@ static const httpd_uri_t get_info = {
 static esp_err_t set_city_handler(httpd_req_t *req) {
     nvs_handle_t nvs_handler;
     esp_err_t err;
-    err = nvs_open("nvs", NVS_READWRITE, &nvs_handler);
+    err = nvs_open("general_data", NVS_READWRITE, &nvs_handler);
     char data[500] = { '\0' };
     int ret = httpd_req_recv(req, data, 500);
 
@@ -192,7 +201,7 @@ const httpd_uri_t set_city = {
 static esp_err_t set_users_handler(httpd_req_t *req) {
     nvs_handle_t nvs_handler;
     esp_err_t err;
-    err = nvs_open("nvs", NVS_READWRITE, &nvs_handler);
+    err = nvs_open("general_data", NVS_READWRITE, &nvs_handler);
     char data[500] = { '\0' };
     int ret = httpd_req_recv(req, data, 500);
 

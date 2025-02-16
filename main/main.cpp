@@ -36,6 +36,8 @@ void app_main(void) {
     ESP_ERROR_CHECK(ret);
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
 
+    
+
     // Set WiFi and time synchronization
     wifi_and_time_init_sta();
 

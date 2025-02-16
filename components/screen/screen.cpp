@@ -164,7 +164,7 @@ void write_gtt() {
 void get_city_info(char weather_api[512], char city_name[50]) {
     nvs_handle_t nvs_handler;
     esp_err_t err;
-    err = nvs_open("nvs", NVS_READONLY, &nvs_handler);
+    err = nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
     size_t value;
     err = nvs_get_str(nvs_handler, "city", city_name, &value);

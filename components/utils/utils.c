@@ -454,3 +454,54 @@ void from_string_to_int_array(char *input, int *array, int *size) {
     }
     *size = index;
 }
+
+
+void from_string_to_string_array(const char *input, char ***array, int *size) {
+    char *temp = strdup(input);  
+    if (!temp) return;
+
+    for (int i = 0; temp[i] != '\0'; i++) {
+        if (temp[i] == '[' || temp[i] == ']') {
+            temp[i] = ' ';
+        }
+    }
+
+    int count = 0;
+    char *token = strtok(temp, " ,");
+    while (token != NULL) {
+        count++;
+        token = strtok(NULL, " ,");
+    }
+
+    *array = (char **)malloc(count * sizeof(char *));
+    if (!(*array)) {
+        free(temp);
+        return;
+    }
+
+    strcpy(temp, input);
+    for (int i = 0; temp[i] != '\0'; i++) {
+        if (temp[i] == '[' || temp[i] == ']') {
+            temp[i] = ' ';
+        }
+    }
+
+    token = strtok(temp, " ,");
+    int index = 0;
+    while (token != NULL) {
+        (*array)[index] = strdup(token);  
+        index++;
+        token = strtok(NULL, " ,");
+    }
+
+    *size = count;
+    free(temp);
+}
+
+void free_string_array(char **array, int size) {
+    if (!array) return;
+    for (int i = 0; i < size; i++) {
+        free(array[i]);
+    }
+    free(array);
+}

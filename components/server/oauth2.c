@@ -10,7 +10,7 @@ void refresh_token_management(char *surname) {
     // Get refresh token from memory
     nvs_handle_t NVS;
     size_t sz;
-    nvs_open("oauth2_tokens", NVS_READWRITE, &NVS);
+    nvs_open("general_data", NVS_READWRITE, &NVS);
     char *json_info= calloc(500, sizeof(char));    
     nvs_get_str(NVS, surname, json_info, &sz);
     
@@ -84,7 +84,7 @@ void token_management(char *code, char *scope, char* id) {
 
     // Memorize -> email primary key
     nvs_handle_t NVS;
-    nvs_open("oauth2_tokens", NVS_READWRITE, &NVS);
+    nvs_open("general_data", NVS_READWRITE, &NVS);
 
     char at_key[15] = {0}, rt_key[15] = {0};
 

@@ -54,6 +54,15 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
+        .subsection {
+            margin: 10px;
+            border: 1px solid #ccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px 0 20px;
+        }
+
         input[type="text"] {
             width: calc(100% - 22px);
             padding: 10px;
@@ -85,7 +94,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-top: 50px;
         }
 
         .slider {
@@ -213,6 +221,23 @@
             restartButton.disabled = deepCompare(start_info, new_info);
         }
 
+        async function setTitle(element, user_id, calendar_id) {
+            let previous_status = !element.checked;
+            try {
+                const res = await fetch(`/set_calendar?user_id=${user_id}&calendar_id=${calendar_id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                });
+                console.log(await res.text());
+            }   
+            catch (err) {
+                console.error(err);
+                element.checked = previous_status;
+            }
+        }
+
         async function initCalendars(no) {
             if (start_info[`user_${no}`] != 'NULL') {
                 document.querySelector(`#user_${no}`).textContent = start_info[`user_${no}`];
@@ -231,7 +256,7 @@
                         // **AGGIUNGE OGNI CALENDARIO ALLA LISTA**
                         calendars.forEach(calendar => {
                             const section = document.createElement("div");
-                            section.className = "section";
+                            section.className = "subsection";
 
                             const title = document.createElement("h2");
                             title.textContent = calendar.title; 
@@ -244,8 +269,9 @@
 
                             const input = document.createElement("input");
                             input.type = "checkbox";
+                            input.checked = calendar.enabled == '1';
                             input.onchange = function () {
-                                settitle(this);
+                                setTitle(this, no, calendar.id);
                             };
 
                             const span = document.createElement("span");

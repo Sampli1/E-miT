@@ -49,7 +49,7 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
     char *title = calloc(1024, sizeof(char));
     char *id = calloc(1024, sizeof(char));
     char *buffer = calloc(1024 * 5, sizeof(char));
-    char **ids_enabled;
+    char **ids_enabled = NULL;
     char *json_vec[20];
     for (int i= 0; i < 20; i++) json_vec[i] = calloc(1024 , sizeof(char));
     
@@ -66,7 +66,9 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
         ESP_LOGI(TAG, "ENABLED CALENDARS:");
         for (int i = 0; i < enabled_length; i++) ESP_LOGI(TAG, "%s", ids_enabled[i]);
     }
-    
+    else {
+        ESP_LOGI(TAG, "NO ENABLED CALENDARS FOR THIS USER!");
+    }
 
     // Get calendars and pass to frontend enabled calendars and list of them
     decompose_json_dynamic_params(calendar_response, 1, "items", items);
@@ -75,16 +77,17 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
     for (int i = 0; i < items_length; i++) {
         enabled = 0;
         decompose_json_dynamic_params(json_vec[i], 2, "id", id, "summary", title);
-        ESP_LOGI(TAG, "Title: %s, Id: %s", title, id);
 
         for (int j = 0; j < enabled_length; j++) if (strcmp(id, ids_enabled[j]) == 0) enabled = 1;
 
         sprintf(buffer, "%s{\"title\": \"%s\", \"id\": \"%s\", \"enabled\": \"%d\"}", (i > 0 ? "," : ""), title, id, enabled);
+        
+        ESP_LOGI(TAG, "Title: %s, Id: %s, Enabled: %d", title, id, enabled);
         strcat(calendar_names, buffer);
 
     }
 
-    free_string_array(ids_enabled, enabled_length);
+    if (ids_enabled != NULL) free_string_array(ids_enabled, enabled_length);
     free(title);
     free(items);
     free(id);
@@ -190,7 +193,7 @@ static esp_err_t set_calendar_handler(httpd_req_t *req) {
     size_t buf_len;
 
     buf_len = httpd_req_get_url_query_len(req) + 1;
-    char param[HTTP_QUERY_KEY_MAX_LEN] = {0}, user_id[3] = {0}, calendar_id[128] = {0};
+    char param[HTTP_QUERY_KEY_MAX_LEN] = {0}, user_id[3] = {0};
 
     if (buf_len > 1) {
         buf = malloc(buf_len);
@@ -203,17 +206,12 @@ static esp_err_t set_calendar_handler(httpd_req_t *req) {
                 example_uri_decode(user_id, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
                 ESP_LOGI(TAG, "Decoded query parameter => %s", user_id);
             }
-            if (httpd_query_key_value(buf, "calendar_id", param, sizeof(param)) == ESP_OK) {
-                ESP_LOGI(TAG, "Found URL query parameter => code=%s", param);
-                example_uri_decode(calendar_id, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
-                ESP_LOGI(TAG, "Decoded query parameter => %s", calendar_id);
-            }
         }
         free(buf);
     }
         
-    if (strlen(calendar_id) == 0 || strlen(user_id) == 0) {
-        httpd_resp_send_custom_err(req, "400", "Calendar or user empty");
+    if (strlen(user_id) == 0) {
+        httpd_resp_send_custom_err(req, "400", "User empty");
         return ESP_FAIL;
     } 
 
@@ -222,52 +220,41 @@ static esp_err_t set_calendar_handler(httpd_req_t *req) {
     nvs_open("general_data", NVS_READWRITE, &NVS);
 
     // Get enabled calendars for that user
-    char *buffer = calloc(MAX_CALENDAR_ID_SIZE * 5 + 2 + 8 + 2, sizeof(char)); // + 2 ('[', ']'), + 8 (', ' in front of element) + 2 ('\0')
-    size_t length;
-    char key[15] = {0}, *val;
+    size_t buffer_size = MAX_CALENDAR_ID_SIZE * 5 + 2 + 8 + 2;
+    char *buffer = calloc(buffer_size, sizeof(char)); // + 2 ('[', ']'), + 8 (', ' in front of element) + 2 ('\0')
+    char key[15] = {0};
 
     sprintf(key, "user_%d_ids", atoi(user_id));
-    if (!get_from_nvs(NVS, key, &val, &length) && strcmp(val, "NULL") == 0) {
-
         
-        // Empty calendar list for that user
-        sprintf(buffer, "[ %s ]", calendar_id);
-        nvs_set_str(NVS, key, buffer);
-        nvs_commit(NVS);
+    // Set new calendar string
+    int ret = httpd_req_recv(req, buffer, buffer_size);
 
-        httpd_resp_set_status(req, "200");
-        httpd_resp_send(req, buffer, HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, NULL, 0);
-        
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req);
+        free(buffer);
+        nvs_close(NVS);
+        return ESP_FAIL;
     }
-    else {
-        
-        int length = count_elements(val);
 
-        if (length == MAX_CALENDARS_EPAPER) {
-            httpd_resp_send_custom_err(req, "400", "Reached maximum calendars in the E-Paper");
-            free(buffer);
-            nvs_close(NVS);
-            return ESP_FAIL;
-        }
+    int length = count_elements(buffer);
 
-
-        // Append a new calendar 
-        char temp[MAX_CALENDAR_ID_SIZE] = { 0 };
-        int val_len = strlen(val);
-        snprintf(temp, sizeof(temp), ", %s]", calendar_id);
-        val[val_len - 1] = '\0';
-        sprintf(buffer, "%s%s", val, temp);
-
-        nvs_set_str(NVS, key, buffer);
-        nvs_commit(NVS);
-
-
-        httpd_resp_set_status(req, "200");
-        httpd_resp_send(req, buffer, HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, NULL, 0);
-
+    if (length > MAX_CALENDARS_EPAPER) {
+        httpd_resp_send_custom_err(req, "400", "Reached maximum calendars in the E-Paper");
+        free(buffer);
+        nvs_close(NVS);
+        return ESP_FAIL;
     }
+
+
+    nvs_set_str(NVS, key, buffer);
+    nvs_commit(NVS);
+
+    ESP_LOGI(TAG, "WRITE ON NVS {%s: %s}", key, buffer);
+
+    httpd_resp_set_status(req, "200");
+    httpd_resp_send(req, buffer, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);
+    
 
     free(buffer);
     nvs_close(NVS);
@@ -296,6 +283,8 @@ const httpd_uri_t set_calendar = {
     .handler   = set_calendar_handler,
     .user_ctx  = "OK!"
 };
+
+
 
 const httpd_uri_t user_validity = {
     .uri = "/check_user",

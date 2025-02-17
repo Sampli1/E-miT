@@ -489,6 +489,12 @@ void from_string_to_string_array(const char *input, char ***array, int *size) {
     token = strtok(temp, " ,");
     int index = 0;
     while (token != NULL) {
+        size_t len = strlen(token);
+        if (len > 1 && token[0] == '"' && token[len - 1] == '"') {
+            token[len - 1] = '\0';
+            token++;  
+        }
+
         (*array)[index] = strdup(token);  
         index++;
         token = strtok(NULL, " ,");
@@ -497,6 +503,7 @@ void from_string_to_string_array(const char *input, char ***array, int *size) {
     *size = count;
     free(temp);
 }
+
 
 void free_string_array(char **array, int size) {
     if (!array) return;

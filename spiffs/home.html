@@ -170,7 +170,7 @@
 
             <div>
                 <input type="text" id="nameInput" placeholder="Scrivi un nome" maxlength="14">
-                <button onclick="addName()">Invia</button>
+                <button onclick="addName(false, null)">Invia</button>
             </div>
 
             <div class="box-container" id="boxContainer">
@@ -223,30 +223,49 @@
 
         async function setTitle(element, user_id, calendar_id) {
             let previous_status = !element.checked;
+            
+            if (element.checked && new_info[`user_${user_id}_calendars`].filter(val => val.enabled == "1").length >= 5) {
+                alert("MAX CALENDARS SIZE == 5");
+                element.checked = previous_status;
+                return;
+            }
+            let previous_info = {...new_info};
+            let obj = new_info[`user_${user_id}_calendars`].filter(val => val.id == calendar_id)[0]
+            
+            new_info[`user_${user_id}_calendars`] = new_info[`user_${user_id}_calendars`].filter(val => val.id != calendar_id);
+            new_info[`user_${user_id}_calendars`] = [
+                ...new_info[`user_${user_id}_calendars`],
+                {
+                    title: obj.title,
+                    id: obj.id,
+                    enabled: element.checked ? "1" : "0"  // Pay attention: they are string
+                }
+            ];
+
             try {
-                const res = await fetch(`/set_calendar?user_id=${user_id}&calendar_id=${calendar_id}`, {
+                const res = await fetch(`/set_calendar?user_id=${user_id}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    body: JSON.stringify(new_info[`user_${user_id}_calendars`].filter(val => val.enabled == "1").map(val => val.id))
                 });
                 console.log(await res.text());
             }   
             catch (err) {
                 console.error(err);
                 element.checked = previous_status;
+                new_info = previous_info;                
             }
         }
 
-        async function initCalendars(no) {
-            if (start_info[`user_${no}`] != 'NULL') {
-                document.querySelector(`#user_${no}`).textContent = start_info[`user_${no}`];
-                appendName(start_info[`user_${no}`]);
-                nameCount++;
-                
+        async function initCalendars(json, no) {
+            if (json[`user_${no}`] != 'NULL') {
+                document.querySelector(`#user_${no}`).textContent = json[`user_${no}`];
+
                 const itemList = document.getElementById(`itemList${no}`);
                 try {
-                    const response = await fetch(`/get_calendar?name=${start_info[`user_${no}`]}&id=${no}`)
+                    const response = await fetch(`/get_calendar?name=${json[`user_${no}`]}&id=${no}`)
                     console.log(response.status);
                     if (response.ok && response.status < 400) {
                         const calendars = JSON.parse(await response.text());
@@ -288,8 +307,8 @@
                             itemList.appendChild(section);
                         });
                         
-                        start_info = {
-                            ...start_info,
+                        json = {
+                            ...json,
                             [`user_${no}_calendars`]: calendars,
                         };
                     }
@@ -313,6 +332,7 @@
                     itemList.append(button); 
                 }
             }
+            return json;
         }
 
         async function loadStart() {
@@ -327,48 +347,13 @@
             console.log(resText);
             start_info = JSON.parse(resText);
 
-            initCalendars(1);
-            initCalendars(2);
+            start_info = await addName(true, start_info["user_1"], start_info);
+            start_info = await addName(true, start_info["user_2"], start_info);
 
             if (start_info["user_1_calendars"] == undefined) start_info["user_1_calendars"] = [];
             if (start_info["user_2_calendars"] == undefined) start_info["user_2_calendars"] = [];
-
-            new_info = JSON.parse(JSON.stringify(start_info));
-
-            checkIfUpdate();
-        }
-
-        async function addItem(user_calendar_key, listId, inputBoxId) {
-            const inputBox = document.getElementById(inputBoxId);
-            const itemList = document.getElementById(listId);
-
-            const newItem = document.createElement("li");
-            newItem.textContent = inputBox.value;
-            itemList.appendChild(newItem);
-
-            const response = await fetch('/set_calendar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ item: inputBox.value })
-            });
-
-            if (response.ok) {
-                console.log("New calendar added")
-                new_info = {
-                    ...new_info,
-                    [user_calendar_key]: [...new_info[user_calendar_key], inputBox.value]
-                };
-
-            } else {
-                console.error("Errore nel salvataggio");
-            }
-
-
-            inputBox.value = "";
             
-            checkIfUpdate();
+            new_info = JSON.parse(JSON.stringify(start_info));
         }
 
         async function convertCityToCoordinates(inputBoxId) {
@@ -422,49 +407,109 @@
             setTimeout(() => window.location.reload(), 10000);
         }
 
-        function appendName(name) {
+        function appendName(name, user_id) {
             const boxContainer = document.getElementById("boxContainer");
+
+            console.log(user_id);
 
             const nameBox = document.createElement("div");
             nameBox.className = "name-box";
-            nameBox.innerHTML = `${name} <button class="close-btn" onclick="removeName(this)">X</button>`;
+            nameBox.innerHTML = `${name} <button class="close-btn" onclick="(async () => { await removeName(this, ${user_id}); })()">X</button>`;
 
             boxContainer.appendChild(nameBox);
             nameInput.value = "";
         }
 
-        async function addName() {
+        async function addName(flag, name_val, json = new_info) {
             const nameInput = document.getElementById("nameInput");
-            const name = nameInput.value.trim();
-            const maxMessage = document.getElementById("maxMessage");
+            let name;
+            if (!flag) name = nameInput.value.trim();
+            else name = name_val;
+            let user_id = -1;
+
+            console.log(`NAMECOUNT ADD ${nameCount}`);
 
             switch (nameCount) {
                 case 0:
-                    new_info = {
-                        ...new_info,
+                    json = {
+                        ...json,
                         "user_1": name
                     };
+                    console.log(`NEW NEW_INFO ${new_info}`)
+                    user_id = 1;
                     break;
                 case 1:
-                    new_info = {
-                        ...new_info,
-                        "user_2": name
-                    };
+                    if (json["user_1"] == "NULL") {
+                        console.log(json["user_1"]);
+                        json = {
+                            ...json,
+                            "user_1": name
+                        };
+                        user_id = 1;
+                    } 
+                    else {
+                        console.log(json["user_2"]);
+                        json = {
+                            ...json,
+                            "user_2": name
+                        };
+                        user_id = 2;
+                    }
                     break;
                 case 2:
                     alert("2 users max");
                     return;
             }
 
-            if (name && nameCount < 2) {
+            if (name && nameCount < 2 && name != "NULL") {
+                appendName(name, user_id);
                 nameCount++;
-                appendName(name);
+
+
+                if (!flag) {
+                    let body = {
+                        user_1: json["user_1"],
+                        user_2: json["user_2"],
+                    }
+                    const response = await fetch('/set_users', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!response.ok) {
+                        console.log(response);
+                        return;
+                    }        
+                }
+
             }
+
+            json = await initCalendars(json, user_id);
+            return json;
+        }
+
+        async function removeName(button, user_id) {
+            const nameBox = button.parentElement;
+            nameBox.remove();
+            nameCount--;
+            
+            console.log(`NAMECOUNT ${nameCount}`);
+
+            // Erase everything bound to that user
+            console.log(user_id);
+            document.querySelector(`#user_${user_id}`).textContent = "";
+            document.querySelector(`#itemList${user_id}`).innerHTML = "";
+            new_info[`user_${user_id}`] = "NULL";
+            
 
             let body = {
                 user_1: new_info["user_1"],
                 user_2: new_info["user_2"],
-            }
+            };
+
             const response = await fetch('/set_users', {
                 method: 'POST',
                 headers: {
@@ -472,30 +517,6 @@
                 },
                 body: JSON.stringify(body)
             });
-
-            if (response.ok) {
-                document.querySelector("#user_1").textContent = new_info["user_1"];
-                document.querySelector("#user_2").textContent = new_info["user_2"];
-            }
-            
-        }
-
-        function removeName(button) {
-            const nameBox = button.parentElement;
-            nameBox.remove();
-            nameCount--;
-            document.getElementById("maxMessage").textContent = "";
-            
-        }
-
-        function setGtt() {
-            const statusElement = document.getElementById("status");
-
-            if (checkbox.checked) {
-                statusElement.textContent = "ON";
-            } else {
-                statusElement.textContent = "OFF";
-            }
         }
 
         window.addEventListener('DOMContentLoaded', loadStart);

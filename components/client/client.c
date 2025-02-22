@@ -8,15 +8,14 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-
-
+void start_http_client(esp_http_client_handle_t *client, char path[MAX_SPIFFS_PATH_LENGTH]);
 
 static const char *TAG = "HTTP_CLIENT";
+esp_http_client_handle_t client_http_gtt, client_http_google;
+static char user_data[8192] = { 0 };
 
-esp_http_client_handle_t client_http;
 
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
-{
+esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
     static char *output_buffer;  // Buffer to store response of http request from event handler
     static int output_len;       // Stores number of bytes read
     switch(evt->event_id) {
@@ -128,7 +127,7 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
 
 
 
-int post_api(const char *post_data, const char* api_address, esp_http_client_handle_t client, void** response) {
+int post_api(const char *post_data, const char* api_address, esp_http_client_handle_t client, void** response, char path[MAX_SPIFFS_PATH_LENGTH]) {
     esp_http_client_set_url(client, api_address);
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/x-www-form-urlencoded");
@@ -143,15 +142,20 @@ int post_api(const char *post_data, const char* api_address, esp_http_client_han
     }    
 
     esp_http_client_cleanup(client);
-    start_http_client();
+    start_http_client(&client, path);
     
     return 1;
 }
 
 
-void start_http_client() {
-    const char* cert = read_from_spiffs("/spiffs/madbob-org-chain.pem");
-    static char user_data[8192] = { 0 };
+void start_http_client(esp_http_client_handle_t *client, char path[MAX_SPIFFS_PATH_LENGTH]) {
+    // Default pem => gtt api
+    char *cert = read_from_spiffs(path);
+    
+    if (cert == NULL) {
+        ESP_LOGE(TAG, "Cert not loaded, FATAL");
+        return;
+    }
 
     esp_http_client_config_t config = { 
         .url= WEATHER_API,
@@ -162,6 +166,16 @@ void start_http_client() {
         .event_handler = _http_event_handler,
         .user_data = user_data
     }; 
-    client_http = esp_http_client_init(&config);
+
+    *client = esp_http_client_init(&config);
 }
 
+
+void start_http_clients() {
+    char path[MAX_SPIFFS_PATH_LENGTH] = "/spiffs/madbob-org-chain.pem";
+    start_http_client(&client_http_gtt, path); 
+    ESP_LOGI(TAG, "GTT HTTP CLIENT SET");
+    strcpy(path, "/spiffs/upload-video-google-chain.pem");
+    start_http_client(&client_http_google, path); 
+    ESP_LOGI(TAG, "GOOGLE HTTP CLIENT SET");
+}

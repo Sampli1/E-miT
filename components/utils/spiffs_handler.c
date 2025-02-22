@@ -55,8 +55,7 @@ void init_spiffs() {
 }
 
 
-
-const char* read_from_spiffs(char *filename) {
+char* read_from_spiffs(char *filename) {
     FILE* f = fopen(filename, "r");  // Riferimento al file nel file system SPIFFS
     if (!f) {
         ESP_LOGE(TAG, "Failed to open file");

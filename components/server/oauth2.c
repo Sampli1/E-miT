@@ -6,39 +6,69 @@
 
 static const char *TAG = "OAUTH2";
 
-void refresh_token_management(char *surname) {
+int refresh_token_managment(int id, char *response) {
+    // Check if response has UNAUTHENTICATED status
+    char *error = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char)), *status = calloc(100, sizeof(char));
+    decompose_json_dynamic_params(response, 1, "error", error);
+    decompose_json_dynamic_params(error, 1, "status", status);
+
+
+    ESP_LOGI(TAG, "REFRESH TOKEN REQ BY ID:%d", id);
+
+    if (strcmp(status, "UNAUTHENTICATED") != 0) {
+        // 
+        free(error);
+        free(status);
+        return 0;
+    }
     // Get refresh token from memory
     nvs_handle_t NVS;
     size_t sz;
     nvs_open("general_data", NVS_READWRITE, &NVS);
-    char *json_info= calloc(500, sizeof(char));    
-    nvs_get_str(NVS, surname, json_info, &sz);
-    
-    char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
-    decompose_json_dynamic_params(json_info, 1,  "refresh_token", refresh_token);
-    
+    char rt_key[17] = {0}; 
+    sprintf(rt_key, "user_%d_rt", id);
+    char *rt_val = calloc(500, sizeof(char));    
+    nvs_get_str(NVS, rt_key, rt_val, &sz);
+     
     // Ask for new token
-    void *response;
+    void *res;
     char *body = malloc(sizeof(char) * MAX_POST_BODY_LENGTH * 2);
-    sprintf(body, "client_id=%s&client_secret=%s&refresh_token=%s&grant_type=refresh_token", CLIENT_ID, CLIENT_SECRET, refresh_token);
-    post_api(body, TOKEN_URI, client_http, &response);
+    sprintf(body, "client_id=%s&client_secret=%s&refresh_token=%s&grant_type=refresh_token", CLIENT_ID, CLIENT_SECRET, rt_val);
+    char path[MAX_SPIFFS_PATH_LENGTH] = "/spiffs/upload-video-google-chain.pem";
+    post_api(body, TOKEN_URI, client_http_google, &res, path);
 
-    if (response == NULL) {
+    if (res == NULL) {
         ESP_LOGE(TAG, "No refresh token");
-        return;
+
+        free(rt_val);
+        free(body);
+        // free(res); post_api frees res
+        free(error);
+        free(status);
+        nvs_close(NVS);
+        return 0;
     }
     
     // Memorize new access token
+    char at_key[17] = {0};
+    sprintf(at_key, "user_%d_at", id);
     char *new_access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
-    decompose_json_dynamic_params(response, 1, "access_token", new_access_token);
-    sprintf(json_info, "{ \"access_token\": \"%s\", \"refresh_token\": \"%s\"}", new_access_token, refresh_token);
-    nvs_set_str(NVS, surname, json_info);  
-    nvs_commit(NVS);
-    nvs_close(NVS);
+    decompose_json_dynamic_params(res, 1, "access_token", new_access_token);
+    nvs_set_str(NVS, at_key, new_access_token);  
 
-    free(json_info);
+    nvs_commit(NVS);
+    
     free(new_access_token);
+    free(rt_val);
+    
     free(body);
+    // free(res); post_api frees res
+    
+    free(error);
+    free(status);
+    
+    nvs_close(NVS);
+    return 1;
 }
 
 void token_management(char *code, char *scope, char* id) {
@@ -47,7 +77,8 @@ void token_management(char *code, char *scope, char* id) {
     void *response;
     sprintf(body, "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code&access_type=offline&prompt=consent", code, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
-    post_api(body, TOKEN_URI, client_http, &response);
+    char path[MAX_SPIFFS_PATH_LENGTH] = "/spiffs/upload-video-google-chain.pem";
+    post_api(body, TOKEN_URI, client_http_google, &response, path);
 
     char *access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char)); 
     char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
@@ -72,7 +103,7 @@ void token_management(char *code, char *scope, char* id) {
 
     for (int i = 0; i < headers_length; i++) ESP_LOGI(TAG, "{%s : %s}", headers_keys[i], headers_values[i]);
     
-    get_api(response, USER_INFO, client_http, headers_keys, headers_values, headers_length);
+    get_api(response, USER_INFO, client_http_google, headers_keys, headers_values, headers_length);
     
     char email[50] = {0}, surname[50] = {0};
 

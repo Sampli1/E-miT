@@ -16,7 +16,7 @@
 #include "Fonts/FreeMonoBold18pt7b.h"
 
 
-#define MAX_GTT_INFO 3 
+#define MAX_GTT_INFO 2 
 #define SCREEN_WIDTH 720
 #define SCREEN_HEIGHT 480
 #define HOURS_IN_A_DAY 24
@@ -138,18 +138,19 @@ void write_gtt() {
     gtt_apis[1] = GTT_API STOP_SND;
     gtt[0] = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     gtt[1] = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
-
+         
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[0]);  
-        get_api(gtt[0], gtt_apis[0], client_http, NULL, NULL, 0);
+        get_api(gtt[0], gtt_apis[0], client_http_gtt, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
 
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[1]);  
-        get_api(gtt[1], gtt_apis[1], client_http, NULL, NULL, 0);
+        get_api(gtt[1], gtt_apis[1], client_http_gtt, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
+
 
     ESP_LOGI(TAG, "Lelle %s", gtt[0]);
     ESP_LOGI(TAG, "Sandro %s", gtt[1]);
@@ -159,6 +160,8 @@ void write_gtt() {
     el = (char *) "10";
     print_gtt_info(gtt[1], col2_x, top_y, row_spacing, el);
 
+    if (gtt[0] != NULL) free(gtt[0]);
+    if (gtt[1] != NULL) free(gtt[1]);
 }
 
 void get_city_info(char weather_api[512], char city_name[50]) {
@@ -199,7 +202,7 @@ void write_meteo(struct tm timeinfo) {
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
 
-        get_api(weather, weather_api, client_http, NULL, NULL, 0);
+        get_api(weather, weather_api, client_http_gtt, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
  
@@ -220,6 +223,7 @@ void write_meteo(struct tm timeinfo) {
     int x_pos = 5, y_pos = 22;
     display.setCursor(x_pos, y_pos);
     display.setFont(&FreeMonoBold18pt7b);
+    display.setTextSize(1);
     x_pos = display.getCursorX();
 
 
@@ -295,12 +299,22 @@ void write_calendar() {
 
 
 void write_time(struct tm timeinfo) {
-    char strftime_buf[64];
-    display.setCursor(12, 12);
-    strftime(strftime_buf, sizeof(strftime_buf), "%H:%M", &timeinfo);
-    ESP_LOGI(TAG, "%s", strftime_buf);
-    display.print(strftime_buf);
+    char time_buf[64], date_buf[64];
+    const char *giorni_settimana_it[] = { "Domenica", "Lunedi", "Martedi", "Mercoledi", "Giovedi", "Venerdi", "Sabato"};
+
+    display.setCursor(600, 30);
+    display.setTextSize(2);
+    strftime(time_buf, sizeof(time_buf), "%H:%M", &timeinfo);
+    display.print(time_buf);
+
+
+    const char *giorno_settimana = giorni_settimana_it[timeinfo.tm_wday];
+    display.setCursor(550, 60);  
+    display.setTextSize(1);      
+    snprintf(date_buf, sizeof(date_buf), "%s %02d/%02d/%d", giorno_settimana, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+    display.print(date_buf);
 }
+
 
 void start_screen(void *pvParameters) {
     display.init(true);
@@ -319,10 +333,11 @@ void start_screen(void *pvParameters) {
 
 
 
-    // write_time(timeinfo);
-    write_meteo(timeinfo);
     write_gtt();
+    write_time(timeinfo);
+    write_meteo(timeinfo);
     write_calendar();
+
 
     display.update();
 

@@ -5,6 +5,7 @@
 #include "utils.h"
 #include "server_utils.h"
 #include "client.h"
+#include "oauth2.h"
 
 #define MAX_CALENDARS_EPAPER 5
 #define MAX_CALENDARS_API 20
@@ -128,10 +129,9 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
 
 
     // Get access_token from id
-    char at_key[15] = {0}, rt_key[15] = {0};
+    char at_key[17] = {0};
     ESP_LOGI(TAG, "ID %d", atoi(id));
     sprintf(at_key, "user_%d_at", atoi(id));
-    sprintf(rt_key, "user_%d_rt", atoi(id));
     
     // Get list of calendars
     char *headers_keys[2] = {"Content-Type", "Authorization"};
@@ -149,6 +149,8 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
     get_from_nvs(NVS, at_key, &access_token, &total_size);
 
     if (access_token == NULL || strlen(access_token) <= 1) {
+        httpd_resp_send_404(req);
+        
         if (access_token) free(access_token);
         free(response);
         return ESP_FAIL;
@@ -156,13 +158,24 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
 
     sprintf(headers_values[1], "Bearer %s", access_token);
 
+    int attempt = 0;
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-        if (!get_api(response, CALENDAR_LIST_LINK, client_http, headers_keys, headers_values, 2)) {
+        while (attempt < 2) {
+            if (get_api(response, CALENDAR_LIST_LINK, client_http_google, headers_keys, headers_values, 2)) break;
+            
+            // Access token may be expired
+            if (attempt == 0 && refresh_token_managment(atoi(id), response)) {
+                get_from_nvs(NVS, at_key, &access_token, &total_size);  
+                attempt++;
+                continue; 
+            }
+
+            // Maybe this user doesn't exist
             free(access_token);
             free(response);
             nvs_close(NVS);
             httpd_resp_send_404(req);
-            xSemaphoreGive(client_http_mutex); // <=== I'm a retard
+            xSemaphoreGive(client_http_mutex);  
             return ESP_FAIL;
         }
         xSemaphoreGive(client_http_mutex);

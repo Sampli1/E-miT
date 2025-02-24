@@ -141,13 +141,13 @@ void write_gtt() {
          
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[0]);  
-        get_api(gtt[0], gtt_apis[0], client_http_gtt, NULL, NULL, 0);
+        get_api(gtt[0], gtt_apis[0], client_http, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
 
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[1]);  
-        get_api(gtt[1], gtt_apis[1], client_http_gtt, NULL, NULL, 0);
+        get_api(gtt[1], gtt_apis[1], client_http, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
 
@@ -202,7 +202,7 @@ void write_meteo(struct tm timeinfo) {
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
 
-        get_api(weather, weather_api, client_http_gtt, NULL, NULL, 0);
+        get_api(weather, weather_api, client_http, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
  
@@ -294,7 +294,7 @@ void write_meteo(struct tm timeinfo) {
 }
 
 void write_calendar() {
-
+    
 }
 
 
@@ -302,7 +302,7 @@ void write_time(struct tm timeinfo) {
     char time_buf[64], date_buf[64];
     const char *giorni_settimana_it[] = { "Domenica", "Lunedi", "Martedi", "Mercoledi", "Giovedi", "Venerdi", "Sabato"};
 
-    display.setCursor(600, 30);
+    display.setCursor(575, 30);
     display.setTextSize(2);
     strftime(time_buf, sizeof(time_buf), "%H:%M", &timeinfo);
     display.print(time_buf);

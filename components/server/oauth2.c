@@ -34,8 +34,12 @@ int refresh_token_managment(int id, char *response) {
     void *res;
     char *body = malloc(sizeof(char) * MAX_POST_BODY_LENGTH * 2);
     sprintf(body, "client_id=%s&client_secret=%s&refresh_token=%s&grant_type=refresh_token", CLIENT_ID, CLIENT_SECRET, rt_val);
-    char path[MAX_SPIFFS_PATH_LENGTH] = "/spiffs/upload-video-google-chain.pem";
-    post_api(body, TOKEN_URI, client_http_google, &res, path);
+
+
+    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
+        post_api(body, TOKEN_URI, client_http, &res);
+        xSemaphoreGive(client_http_mutex);
+    }
 
     if (res == NULL) {
         ESP_LOGE(TAG, "No refresh token");
@@ -77,8 +81,10 @@ void token_management(char *code, char *scope, char* id) {
     void *response;
     sprintf(body, "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code&access_type=offline&prompt=consent", code, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
-    char path[MAX_SPIFFS_PATH_LENGTH] = "/spiffs/upload-video-google-chain.pem";
-    post_api(body, TOKEN_URI, client_http_google, &response, path);
+    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
+        post_api(body, TOKEN_URI, client_http, &response);
+        xSemaphoreGive(client_http_mutex);
+    }
 
     char *access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char)); 
     char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
@@ -103,7 +109,10 @@ void token_management(char *code, char *scope, char* id) {
 
     for (int i = 0; i < headers_length; i++) ESP_LOGI(TAG, "{%s : %s}", headers_keys[i], headers_values[i]);
     
-    get_api(response, USER_INFO, client_http_google, headers_keys, headers_values, headers_length);
+    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
+        get_api(response, USER_INFO, client_http, headers_keys, headers_values, headers_length);
+        xSemaphoreGive(client_http_mutex);
+    } 
     
     char email[50] = {0}, surname[50] = {0};
 

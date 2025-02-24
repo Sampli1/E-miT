@@ -157,17 +157,21 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
     }
 
     sprintf(headers_values[1], "Bearer %s", access_token);
-
+ 
     int attempt = 0;
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         while (attempt < 2) {
-            if (get_api(response, CALENDAR_LIST_LINK, client_http_google, headers_keys, headers_values, 2)) break;
+            if (get_api(response, CALENDAR_LIST_LINK, client_http, headers_keys, headers_values, 2)) break;
             
             // Access token may be expired
-            if (attempt == 0 && refresh_token_managment(atoi(id), response)) {
-                get_from_nvs(NVS, at_key, &access_token, &total_size);  
-                attempt++;
-                continue; 
+            if (attempt == 0) {
+                xSemaphoreGive(client_http_mutex);
+                if (refresh_token_managment(atoi(id), response)) {
+                    get_from_nvs(NVS, at_key, &access_token, &total_size);  
+                    attempt++;
+                    continue; 
+                }
+                xSemaphoreTake(client_http_mutex, portMAX_DELAY);
             }
 
             // Maybe this user doesn't exist

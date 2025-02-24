@@ -8,11 +8,8 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-void start_http_client(esp_http_client_handle_t *client, char path[MAX_SPIFFS_PATH_LENGTH]);
-
 static const char *TAG = "HTTP_CLIENT";
-esp_http_client_handle_t client_http_gtt, client_http_google;
-static char user_data[8192] = { 0 };
+esp_http_client_handle_t client_http;
 
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
@@ -127,8 +124,9 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
 
 
 
-int post_api(const char *post_data, const char* api_address, esp_http_client_handle_t client, void** response, char path[MAX_SPIFFS_PATH_LENGTH]) {
+int post_api(const char *post_data, const char* api_address, esp_http_client_handle_t client, void** response) {
     esp_http_client_set_url(client, api_address);
+    
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/x-www-form-urlencoded");
     esp_http_client_set_post_field(client, post_data, strlen(post_data));
@@ -142,15 +140,16 @@ int post_api(const char *post_data, const char* api_address, esp_http_client_han
     }    
 
     esp_http_client_cleanup(client);
-    start_http_client(&client, path);
+    start_http_client();
     
     return 1;
 }
 
 
-void start_http_client(esp_http_client_handle_t *client, char path[MAX_SPIFFS_PATH_LENGTH]) {
+void start_http_client() {
     // Default pem => gtt api
-    char *cert = read_from_spiffs(path);
+    static char user_data[8192] = { 0 };
+    char *cert = read_from_spiffs("/spiffs/cacert.pem");
     
     if (cert == NULL) {
         ESP_LOGE(TAG, "Cert not loaded, FATAL");
@@ -158,8 +157,9 @@ void start_http_client(esp_http_client_handle_t *client, char path[MAX_SPIFFS_PA
     }
 
     esp_http_client_config_t config = { 
-        .url= WEATHER_API,
+        .url= GTT_API,
         .cert_pem = cert,
+        .cert_len = strlen(cert) + 1,
         .timeout_ms = 10000,
         .buffer_size = 8192 * 2,
         .buffer_size_tx = 8192,
@@ -167,15 +167,5 @@ void start_http_client(esp_http_client_handle_t *client, char path[MAX_SPIFFS_PA
         .user_data = user_data
     }; 
 
-    *client = esp_http_client_init(&config);
-}
-
-
-void start_http_clients() {
-    char path[MAX_SPIFFS_PATH_LENGTH] = "/spiffs/madbob-org-chain.pem";
-    start_http_client(&client_http_gtt, path); 
-    ESP_LOGI(TAG, "GTT HTTP CLIENT SET");
-    strcpy(path, "/spiffs/upload-video-google-chain.pem");
-    start_http_client(&client_http_google, path); 
-    ESP_LOGI(TAG, "GOOGLE HTTP CLIENT SET");
+    client_http = esp_http_client_init(&config);
 }

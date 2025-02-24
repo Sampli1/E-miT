@@ -12,12 +12,13 @@
 #include "gdew075T7.h"
 #include "Fonts/FreeMonoBold9pt7b.h"
 #include "Fonts/FreeSans9pt7b.h"
+#include "Fonts/Tiny3x3a2pt7b.h"
 #include "Fonts/FreeMonoBold12pt7b.h"
 #include "Fonts/FreeMonoBold18pt7b.h"
 
 
 #define MAX_GTT_INFO 2 
-#define SCREEN_WIDTH 720
+#define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 480
 #define HOURS_IN_A_DAY 24
 
@@ -164,10 +165,8 @@ void write_gtt() {
     if (gtt[1] != NULL) free(gtt[1]);
 }
 
-void get_city_info(char weather_api[512], char city_name[50]) {
-    nvs_handle_t nvs_handler;
+void get_city_info(char weather_api[512], char city_name[50], nvs_handle_t nvs_handler) {
     esp_err_t err;
-    err = nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
     size_t value;
     err = nvs_get_str(nvs_handler, "city", city_name, &value);
@@ -184,7 +183,7 @@ void get_city_info(char weather_api[512], char city_name[50]) {
 }
 
 
-void write_meteo(struct tm timeinfo) {
+void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     char *weather = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     char *hourly = (char *) calloc(1000, sizeof(char));
     char *temperatures = (char *) calloc(200, sizeof(char));
@@ -196,16 +195,13 @@ void write_meteo(struct tm timeinfo) {
     int wheaters_values[24];
 
     char weather_api[512] = {'\0'}, city_name[50];
-    get_city_info(weather_api, city_name);
-
+    get_city_info(weather_api, city_name, nvs_handler);
 
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
-
         get_api(weather, weather_api, client_http, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
- 
 
     // Handle JSON data => please, avoid using C for future projects
     decompose_json_dynamic_params(weather, 1, "hourly", hourly);
@@ -293,8 +289,51 @@ void write_meteo(struct tm timeinfo) {
     display.setTextSize(1);
 }
 
-void write_calendar() {
-    
+void write_timeline(int x_base, int y_base) {
+    const int fontsize = 17;
+    const int padding = x_base;
+    char buf[100];
+    // Write rectangles
+    for (int w = -1; w < 1; w++) display.drawLine(x_base, y_base - w, x_base + SCREEN_WIDTH - padding , y_base - w, EPD_BLACK);
+    for (int w = -1; w < 1; w++) display.drawLine(x_base, y_base + fontsize - w, x_base + SCREEN_WIDTH - padding, y_base + fontsize - w, EPD_BLACK);
+    int c = 0;
+    int step = (SCREEN_WIDTH - padding - x_base)/24;
+    for (int x = x_base; x <= SCREEN_WIDTH - padding; x += step) {
+        for (int w = 0; w < 2; w++) display.drawLine(x - w, y_base, x - w, y_base + fontsize, EPD_BLACK);
+        display.setCursor(x, y_base + fontsize);
+        sprintf(buf, "%d:00", c);
+        display.print(buf);
+        c++;
+    }
+}
+
+void write_calendar(nvs_handle_t nvs_handler) {
+    display.setFont(&Tiny3x3a2pt7b);
+    display.setTextSize(2);
+    int y_base = 325;
+    int x_base = 4;
+
+    // Write timeline
+    write_timeline(x_base, y_base);
+
+    // For each user and for each calendar of that user 
+    char *url = (char *) calloc(strlen(CALENDAR_ELEMENTS_LINK) + 400, sizeof(char)); // 400 may be sufficient for ids and dates
+    // char *id = (char *) ;
+    // char key[17];
+
+    // for (int i = 0; i < 2; i++) {
+        // sprintf(key, "user_%d_ids", i);
+
+        // nvs_get_str(nvs_handler, key, );
+        // if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
+            // ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
+            // get_api(weather, weather_api, client_http, NULL, NULL, 0);
+            // xSemaphoreGive(client_http_mutex);
+        // }
+
+    // }
+
+    free(url);
 }
 
 
@@ -331,15 +370,18 @@ void start_screen(void *pvParameters) {
     time(&now);
     localtime_r(&now, &timeinfo);
 
+    // Open NVS
+    nvs_handle_t nvs_handler;
+    nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
 
     write_gtt();
     write_time(timeinfo);
-    write_meteo(timeinfo);
-    write_calendar();
+    write_meteo(timeinfo, nvs_handler);
+    write_calendar(nvs_handler);
 
 
     display.update();
-
+    nvs_close(nvs_handler);
     vTaskDelete(NULL);
 }

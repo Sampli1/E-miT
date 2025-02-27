@@ -21,5 +21,6 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
 
 void start_http_client();
 
+void empty_http_client();
 
 #endif // CLIENT_H_

@@ -9,10 +9,14 @@
 
 #include "screen.hpp"
 #include "icons_128x128.h"
+#include "generic_icons.h"
 #include "gdew075T7.h"
-#include "Fonts/FreeMonoBold9pt7b.h"
+#include "nvs_utils.h"
+
+
 #include "Fonts/FreeSans9pt7b.h"
 #include "Fonts/Tiny3x3a2pt7b.h"
+#include "Fonts/FreeMonoBold9pt7b.h"
 #include "Fonts/FreeMonoBold12pt7b.h"
 #include "Fonts/FreeMonoBold18pt7b.h"
 
@@ -20,6 +24,8 @@
 #define MAX_GTT_INFO 2 
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 480
+#define FIRST_COLUMN 300
+#define SECOND_COLUMN 550
 #define HOURS_IN_A_DAY 24
 
 
@@ -121,9 +127,9 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
 
 
 void write_gtt() {
-    int col1_x = 550;
-    int col2_x = 675;
-    int top_y = 100;
+    int col1_x = 30;
+    int col2_x = 155;
+    int top_y = 400;
     int row_spacing = 30;
     
     display.setCursor(col1_x, top_y);
@@ -179,7 +185,6 @@ void get_city_info(char weather_api[512], char city_name[50], nvs_handle_t nvs_h
     err = nvs_get_str(nvs_handler, "w_api", weather_api, &value_len);
 
     ESP_LOGI(TAG, "WHEATHER API FOR %s: %s", city_name, weather_api);
-    nvs_close(nvs_handler);
 }
 
 
@@ -216,22 +221,51 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     const unsigned char *icon = write_weather_icon(icon_val);
     int temperature = temperatures_values[timeinfo.tm_hour];
 
-    int x_pos = 5, y_pos = 22;
-    display.setCursor(x_pos, y_pos);
+    // City name
+    int16_t x_pos = 0, y_pos = 100, x_end, y_end, centeredX;
+    uint16_t w, h;
     display.setFont(&FreeMonoBold18pt7b);
     display.setTextSize(1);
-    x_pos = display.getCursorX();
+    display.getTextBounds(city_name, x_pos, y_pos, &x_end, &y_end, &w, &h);
+    if (x_end >= FIRST_COLUMN) {
+        // Long city name... trying to reduce dimension:
+        display.setFont(&FreeMonoBold12pt7b);
+        display.setTextSize(1);
+        display.getTextBounds(city_name, x_pos, y_pos, &x_end, &y_end, &w, &h);
+    }
+    if (x_end < FIRST_COLUMN) {
+        centeredX = (FIRST_COLUMN - w)/ 2;
+        display.setCursor(centeredX, y_pos);
+        display.print(city_name);
+    }
+    uint16_t y_temperature = display.getCursorY();
 
-
-
-    display.println(city_name);
-    y_pos = display.getCursorY();
-    display.setCursor(x_pos, y_pos);
+    // Temperature & Climate
+    display.setCursor(0, 0);
     char temperature_to_display[30] = { '\0' };
-    sprintf(temperature_to_display ,"%d", temperature);    
-    display.print(temperature_to_display);
+    sprintf(temperature_to_display ,"%d", temperature);
+    uint16_t sum = 0;
+    int16_t image_size = 128;
+    display.setFont(&FreeMonoBold18pt7b);
+    display.setTextSize(1);
+    display.getTextBounds(temperature_to_display, x_pos, y_pos, &x_end, &y_end, &w, &h); 
+    sum += w;
     display.setFont(&FreeMonoBold9pt7b);
     display.setTextSize(1);
+    display.getTextBounds(" o", x_pos, y_pos, &x_end, &y_end, &w, &h); 
+    sum += w;
+    display.setFont(&FreeMonoBold18pt7b);
+    display.setTextSize(1);
+    display.getTextBounds("C", x_pos, y_pos, &x_end, &y_end, &w, &h); 
+    sum += w;
+    sum += image_size; 
+    sum += 25; // Inner padding
+    centeredX = (FIRST_COLUMN - sum)/ 2;
+    y_temperature += image_size/2;     
+
+    display.setCursor(centeredX, y_temperature);
+    display.print(temperature_to_display);
+    display.setFont(&FreeMonoBold9pt7b);
     display.print(" ");
     x_pos = display.getCursorX();
     y_pos = display.getCursorY();
@@ -240,22 +274,21 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     x_pos = display.getCursorX();
     display.setFont(&FreeMonoBold18pt7b);
     display.setCursor(x_pos, y_pos);
-    display.println("C");
-    x_pos = 5;
-    display.drawBitmap(x_pos, y_pos, icon, 128, 128, EPD_BLACK);
+    display.print("C");
+    x_pos = display.getCursorX();
+    display.drawBitmap(x_pos + 25, y_pos - image_size/2, icon, image_size, image_size, EPD_BLACK);
+
 
     // Rain probability chart => chart of 240 px width and 50 px heighs
     display.setFont(&FreeSans9pt7b);
     display.setTextSize(1);
-    const int x_base = 230;
-    const int y_base = 150;
-    display.setCursor(x_base, 22);
-    display.print("Probabilita' di pioggia");
-    const int chart_witdth = 240;
+    const int x_base = 30;
+    const int y_base = 350;
+    const int chart_width = 150;
     const int chart_height = 100;
     char buffer[10] = { '\0' };
 
-    for (int w = 0; w < 3; w++) display.drawLine(x_base, y_base - w, x_base + chart_witdth , y_base - w, EPD_BLACK);
+    for (int w = 0; w < 3; w++) display.drawLine(x_base, y_base - w, x_base + chart_width , y_base - w, EPD_BLACK);
 
     for (int w = 0; w < 3; w++) display.drawLine(x_base - w, y_base, x_base - w, y_base - chart_height, EPD_BLACK);
 
@@ -289,71 +322,140 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     display.setTextSize(1);
 }
 
-void write_timeline(int x_base, int y_base) {
-    const int fontsize = 17;
-    const int padding = x_base;
-    char buf[100];
-    // Write rectangles
-    for (int w = -1; w < 1; w++) display.drawLine(x_base, y_base - w, x_base + SCREEN_WIDTH - padding , y_base - w, EPD_BLACK);
-    for (int w = -1; w < 1; w++) display.drawLine(x_base, y_base + fontsize - w, x_base + SCREEN_WIDTH - padding, y_base + fontsize - w, EPD_BLACK);
-    int c = 0;
-    int step = (SCREEN_WIDTH - padding - x_base)/24;
-    for (int x = x_base; x <= SCREEN_WIDTH - padding; x += step) {
-        for (int w = 0; w < 2; w++) display.drawLine(x - w, y_base, x - w, y_base + fontsize, EPD_BLACK);
-        display.setCursor(x, y_base + fontsize);
-        sprintf(buf, "%d:00", c);
-        display.print(buf);
-        c++;
+void calendar_2(nvs_handle_t nvs_handler) {
+    char *url = (char *) calloc(strlen(CALENDAR_ELEMENTS_LINK) + 1024 + 400, sizeof(char)); // 400 may be sufficient for dates
+    char *calendars; 
+    char *events;
+
+    display.drawLine(SECOND_COLUMN, 0, SECOND_COLUMN, SCREEN_HEIGHT, EPD_BLACK);
+
+    // Write names
+
+    int16_t x_pos = 0, y_pos = 26, x_end, y_end, centeredX;
+    uint16_t w = 0, h, x_center, y_center;
+    char *name;
+    char key[17];
+    display.setFont(&FreeMonoBold12pt7b);
+    display.setTextSize(1);
+    
+    for (int i = 1; i < 3; i++) {
+        // Print names
+        sprintf(key, "user_%d", i);
+        get_from_nvs(nvs_handler, key, &name, NULL);
+        ESP_LOGI(TAG, "%s %s", key, name);
+        display.getTextBounds(name, x_pos, y_pos, &x_end, &y_end, &w, &h);
+
+        x_center = FIRST_COLUMN + (((SECOND_COLUMN - FIRST_COLUMN) * (2*i - 1)) - w)/2;
+
+        ESP_LOGI(TAG, "X_Center %d", x_center);
+        display.setCursor(x_center, y_pos);
+        display.println(name);
     }
+
+    y_pos = display.getCursorY();
+
+    display.drawLine(FIRST_COLUMN, y_pos, SCREEN_WIDTH, y_pos, EPD_BLACK);
+
+    // Get all calendars and do correct calculations
+    
+    for (int i = 1; i < 3; i++) {
+        sprintf(key, "user_%d_ids", i);
+        get_from_nvs(nvs_handler, key, &calendars, NULL);
+        // from_string_to_string_array();
+
+        // sprintf(url, CALENDAR_ELEMENTS_LINK, );
+    }
+
+
+
+
+
+
+    free(name);
+    free(calendars);
+    free(url);
+}
+
+void calendar_0() {
+    display.setFont(&FreeMonoBold12pt7b);
+    display.setTextSize(1);
+    
+    int16_t y_pos = 20, x_pos = 0, x_end, y_end;
+    uint16_t w, h, qr_dim = 256;
+    char text[50] = "Necessito input, inquadrare:";
+    display.getTextBounds(text, x_pos, y_pos, &x_end, &y_end, &w, &h);
+    uint16_t average_y = (SCREEN_HEIGHT - (h + qr_dim + 30)) / 2; // 30 stands for space between qr_code and text 
+    uint16_t average_x = FIRST_COLUMN + (SCREEN_WIDTH - FIRST_COLUMN - w)/2, average_x_qr = FIRST_COLUMN + (SCREEN_WIDTH - FIRST_COLUMN - qr_dim)/2;
+
+    display.setCursor(average_x, average_y);
+    display.print(text);
+
+    display.setCursor(average_x_qr, average_y + 30);
+    display.drawBitmap(average_x_qr, average_y + 30, qr_code, qr_dim, qr_dim, EPD_BLACK);
+
 }
 
 void write_calendar(nvs_handle_t nvs_handler) {
-    display.setFont(&Tiny3x3a2pt7b);
-    display.setTextSize(2);
-    int y_base = 325;
-    int x_base = 4;
-
-    // Write timeline
-    write_timeline(x_base, y_base);
-
     // For each user and for each calendar of that user 
-    char *url = (char *) calloc(strlen(CALENDAR_ELEMENTS_LINK) + 400, sizeof(char)); // 400 may be sufficient for ids and dates
-    // char *id = (char *) ;
-    // char key[17];
+    char *name;
+    char key[17];
+    size_t length;
+    uint8_t users_number = 0;
+    nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
-    // for (int i = 0; i < 2; i++) {
-        // sprintf(key, "user_%d_ids", i);
+    for (int i = 1; i < 3; i++) {
+        // Print names
+        sprintf(key, "user_%d", i);
+        
+        get_from_nvs(nvs_handler, key, &name, &length);
+        ESP_LOGI(TAG, "%s %s", key, name);
+        if (strcmp(name, "NULL") != 0) users_number++;
+    }
 
-        // nvs_get_str(nvs_handler, key, );
-        // if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-            // ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
-            // get_api(weather, weather_api, client_http, NULL, NULL, 0);
-            // xSemaphoreGive(client_http_mutex);
-        // }
+    switch (users_number) {
+        case 0: calendar_0(); break;
+        case 1: calendar_0(); break;
+        case 2: calendar_2(nvs_handler); break;
+    }
 
-    // }
-
-    free(url);
+    free(name);
 }
 
 
 void write_time(struct tm timeinfo) {
     char time_buf[64], date_buf[64];
-    const char *giorni_settimana_it[] = { "Domenica", "Lunedi", "Martedi", "Mercoledi", "Giovedi", "Venerdi", "Sabato"};
+    const char *giorni_settimana_it[] = { "Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"};
 
-    display.setCursor(575, 30);
-    display.setTextSize(2);
+    int16_t x_pos = 0, y_pos = 22, x_end, y_end, centeredX;
+    uint16_t w = 0, h;
+    display.setFont(&FreeMonoBold18pt7b);
+    display.setTextSize(1);
+
     strftime(time_buf, sizeof(time_buf), "%H:%M", &timeinfo);
-    display.print(time_buf);
+    display.getTextBounds(time_buf, x_pos, y_pos, &x_end, &y_end, &w, &h);
 
+    centeredX = (FIRST_COLUMN - w)/2;
+    display.setCursor(centeredX, y_pos);
+    display.println(time_buf);
 
+    // Day 
+    y_pos = display.getCursorY();
     const char *giorno_settimana = giorni_settimana_it[timeinfo.tm_wday];
-    display.setCursor(550, 60);  
-    display.setTextSize(1);      
     snprintf(date_buf, sizeof(date_buf), "%s %02d/%02d/%d", giorno_settimana, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
-    display.print(date_buf);
+
+    display.setFont(&FreeMonoBold12pt7b);
+    display.setTextSize(1);
+    display.getTextBounds(date_buf, x_pos, y_pos, &x_end, &y_end, &w, &h);
+    centeredX = (FIRST_COLUMN - w)/2;
+    display.setCursor(centeredX, y_pos);
+    display.println(date_buf);    
 }
 
+
+void write_separator() {
+    // vertical separator 
+    display.writeLine(FIRST_COLUMN, 0, FIRST_COLUMN, SCREEN_HEIGHT, EPD_BLACK); 
+}
 
 void start_screen(void *pvParameters) {
     display.init(true);
@@ -374,12 +476,13 @@ void start_screen(void *pvParameters) {
     nvs_handle_t nvs_handler;
     nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
-
+    write_separator();
     write_gtt();
     write_time(timeinfo);
     write_meteo(timeinfo, nvs_handler);
     write_calendar(nvs_handler);
 
+    ESP_LOGI(TAG, "Writing success!");
 
     display.update();
     nvs_close(nvs_handler);

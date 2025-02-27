@@ -119,6 +119,7 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
         }
     }
     esp_http_client_close(client);
+    esp_http_client_flush_response(client, NULL);
     return status;
 }
 
@@ -168,4 +169,10 @@ void start_http_client() {
     }; 
 
     client_http = esp_http_client_init(&config);
+}
+
+
+void empty_http_client() {
+    esp_http_client_cleanup(client_http);
+    start_http_client();
 }

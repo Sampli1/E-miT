@@ -1,7 +1,7 @@
 #ifndef SCREEN_H
 #define SCREEN_H
 
-#include "freertos/FreeRTOS.h"
+#include "utils.h"
 
 void start_screen(void *pvParameters);
 

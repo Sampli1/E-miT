@@ -512,3 +512,4 @@ void free_string_array(char **array, int size) {
     }
     free(array);
 }
+

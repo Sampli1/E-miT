@@ -3,6 +3,8 @@
 #include "calendar.h"
 #include "spiffs_handler.h"
 #include "utils.h"
+#include "nvs_utils.h"
+
 #include "server_utils.h"
 #include "client.h"
 #include "oauth2.h"
@@ -24,26 +26,6 @@ int count_elements(const char *input) {
     return count;
 }
 
-
-esp_err_t get_from_nvs(nvs_handle_t nvs_handler, char *key, char **val, size_t *total_size) {
-    size_t required_size;
-    esp_err_t err;
-
-    err = nvs_get_str(nvs_handler, key, NULL, &required_size);
-    ESP_LOGI(TAG, "required size: %zu", required_size);
-    
-    if (err == ESP_OK) {
-        (*val) = (char *) malloc(required_size * sizeof(char));
-        *total_size += required_size;
-        err = nvs_get_str(nvs_handler, key, *val, &required_size);
-        ESP_LOGI(TAG, "%s: %s", key, *val);
-    }
-    else {
-        (*val) = calloc(10, sizeof(char));
-        sprintf(*val, "NULL");
-    }
-    return err;
-}
 
 void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_response, char *calendar_names) {
     char *items = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));

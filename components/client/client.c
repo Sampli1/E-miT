@@ -9,6 +9,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static const char *TAG = "HTTP_CLIENT";
+static char *cert;
 esp_http_client_handle_t client_http;
 
 
@@ -73,43 +74,43 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
 }
 
 
-int get_api(char *content, const char* api_address, esp_http_client_handle_t client, char **header_keys, char **header_values, int header_keys_length) {
+int get_api(char *content, const char* api_address, char **header_keys, char **header_values, int header_keys_length) {
     int content_length = 0;
-    esp_http_client_set_url(client, api_address);
-    esp_http_client_set_method(client, HTTP_METHOD_GET);
+    esp_http_client_set_url(client_http, api_address);
+    esp_http_client_set_method(client_http, HTTP_METHOD_GET);
 
 
     ESP_LOGI(TAG, "URL: %s", api_address);
 
     if (header_keys != NULL) {
-        esp_http_client_delete_header(client, "Content-Type");
+        esp_http_client_delete_header(client_http, "Content-Type");
         for (int i = 0; i < header_keys_length; i++){
             ESP_LOGI(TAG, "SET HEADER {%s:%s}", header_keys[i], header_values[i]);
-            esp_http_client_set_header(client, header_keys[i], header_values[i]); 
+            esp_http_client_set_header(client_http, header_keys[i], header_values[i]); 
         }
     }
     // Free body
-    esp_http_client_set_post_field(client, '\0', 0);
+    esp_http_client_set_post_field(client_http, '\0', 0);
 
     int status = 1;
-    esp_err_t err = esp_http_client_open(client, 0);
+    esp_err_t err = esp_http_client_open(client_http, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
         status = 0;
     } else {
-        content_length = esp_http_client_fetch_headers(client);
+        content_length = esp_http_client_fetch_headers(client_http);
         if (content_length < 0) {
             ESP_LOGE(TAG, "HTTP client fetch headers failed");
             status = 0;
         } else {
-            int data_read = esp_http_client_read_response(client, content, MAX_HTTP_OUTPUT_BUFFER);
+            int data_read = esp_http_client_read_response(client_http, content, MAX_HTTP_OUTPUT_BUFFER);
             if (data_read >= 0) {
                 ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %"PRId64,
-                esp_http_client_get_status_code(client),
-                esp_http_client_get_content_length(client));
+                esp_http_client_get_status_code(client_http),
+                esp_http_client_get_content_length(client_http));
                 ESP_LOGI(TAG, "%s", content);
-                if (esp_http_client_get_status_code(client) >= 400) {
-                    ESP_LOGE(TAG, "Error %d", esp_http_client_get_status_code(client));
+                if (esp_http_client_get_status_code(client_http) >= 400) {
+                    ESP_LOGE(TAG, "Error %d", esp_http_client_get_status_code(client_http));
                     status = 0;
                 }
             } else {
@@ -118,11 +119,17 @@ int get_api(char *content, const char* api_address, esp_http_client_handle_t cli
             }
         }
     }
-    esp_http_client_close(client);
-    esp_http_client_flush_response(client, NULL);
+
+    // esp_http_client_flush_response(client_http, NULL);
+    // esp_http_client_delete_all_headers(client_http);
+    // esp_http_client_close(client_http);    
+
+    esp_http_client_cleanup(client_http);
+    start_http_client();
+
+
     return status;
 }
-
 
 
 int post_api(const char *post_data, const char* api_address, esp_http_client_handle_t client, void** response) {
@@ -147,15 +154,16 @@ int post_api(const char *post_data, const char* api_address, esp_http_client_han
 }
 
 
-void start_http_client() {
-    // Default pem => gtt api
-    static char user_data[8192] = { 0 };
-    char *cert = read_from_spiffs("/spiffs/cacert.pem");
-    
+void load_cert() {
+    cert = read_from_spiffs("/spiffs/cacert.pem");
     if (cert == NULL) {
         ESP_LOGE(TAG, "Cert not loaded, FATAL");
         return;
     }
+}
+
+void start_http_client() {
+    static char user_data[8192] = { 0 };
 
     esp_http_client_config_t config = { 
         .url= GTT_API,
@@ -169,10 +177,4 @@ void start_http_client() {
     }; 
 
     client_http = esp_http_client_init(&config);
-}
-
-
-void empty_http_client() {
-    esp_http_client_cleanup(client_http);
-    start_http_client();
 }

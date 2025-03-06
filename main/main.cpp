@@ -43,17 +43,19 @@ void app_main(void) {
     // Start spiffs memory
     init_spiffs();
     
+    // Start http(s) client
+    load_cert();
     start_http_client();
 
     client_http_mutex = xSemaphoreCreateMutex();
     
     // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 1024 * 20, NULL, 1, NULL);
+    xTaskCreate(start_server, "SERVER", 1024 * 15, NULL, 1, NULL);
 
     // Routine to start getting screen resources and display it
     xTaskCreate(start_screen, "SCREEN", 5 * 1024, NULL, 5, NULL);
 
-
+    // LOOP
     // Routine of peripherals
     // xTaskCreate(start_gpio, "GPIO", 1024, NULL, 4, NULL);
 }

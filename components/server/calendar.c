@@ -9,12 +9,7 @@
 #include "client.h"
 #include "oauth2.h"
 
-#define MAX_CALENDARS_EPAPER 5
-#define MAX_CALENDARS_API 20
-#define MAX_CALENDAR_ID_SIZE 1025
-
 static const char *TAG = "CALENDAR";
-
 
 int count_elements(const char *input) {
     int count = 1;
@@ -109,67 +104,19 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
         free(buf);
     }
 
-
-    // Get access_token from id
-    char at_key[17] = {0};
-    ESP_LOGI(TAG, "ID %d", atoi(id));
-    sprintf(at_key, "user_%d_at", atoi(id));
-    
+ 
     // Get list of calendars
-    char *headers_keys[2] = {"Content-Type", "Authorization"};
-    char *headers_values[2];
-    headers_values[0] = "application/json";
-    headers_values[1] = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
-    if (headers_values[1] == NULL) {
-        ESP_LOGE(TAG, "OUT OF MEMORY");
-        return ESP_FAIL;  
-    }
-    char *response = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char)), *access_token;
-    
-    size_t total_size = 0;
+    char *response = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
 
-    get_from_nvs(NVS, at_key, &access_token, &total_size);
-
-    if (access_token == NULL || strlen(access_token) <= 1) {
-        httpd_resp_send_404(req);
-        
-        if (access_token) free(access_token);
+    if (get_api_oauth2(response, CALENDAR_LIST_LINK, NVS, atoi(id)) != ESP_OK) {
         free(response);
+        httpd_resp_send_404(req);
+        nvs_close(NVS);
         return ESP_FAIL;
     }
-
-    sprintf(headers_values[1], "Bearer %s", access_token);
- 
-    int attempt = 0;
-    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-        while (attempt < 2) {
-            if (get_api(response, CALENDAR_LIST_LINK, client_http, headers_keys, headers_values, 2)) break;
-            
-            // Access token may be expired
-            if (attempt == 0) {
-                xSemaphoreGive(client_http_mutex);
-                if (refresh_token_managment(atoi(id), response)) {
-                    get_from_nvs(NVS, at_key, &access_token, &total_size);  
-                    attempt++;
-                    continue; 
-                }
-                xSemaphoreTake(client_http_mutex, portMAX_DELAY);
-            }
-
-            // Maybe this user doesn't exist
-            free(access_token);
-            free(response);
-            nvs_close(NVS);
-            httpd_resp_send_404(req);
-            xSemaphoreGive(client_http_mutex);  
-            return ESP_FAIL;
-        }
-        xSemaphoreGive(client_http_mutex);
-    }
-
+    
     ESP_LOGI(TAG, "CALENDARS: %s", response);   
 
-    
     char *calendar_names = calloc(1024 * 20 + 20, sizeof(char));
 
     strcat(calendar_names, "[");
@@ -180,8 +127,6 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
     httpd_resp_send(req, calendar_names, HTTPD_RESP_USE_STRLEN);
 
     free(calendar_names);
-    free(headers_values[1]);
-    free(access_token);
     free(response);
     nvs_close(NVS);
     return ESP_OK;

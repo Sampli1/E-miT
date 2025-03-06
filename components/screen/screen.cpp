@@ -22,6 +22,7 @@
 
 
 #define MAX_GTT_INFO 2 
+#define MAX_EVENTS_PER_USER 10
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 480
 #define FIRST_COLUMN 300
@@ -35,7 +36,6 @@ static const char *TAG = "SCREEN";
 extern "C" {
     #include "client.h"
     #include "esp_server.h"  
-    #include "utils.h"
 };
 
 
@@ -148,13 +148,22 @@ void write_gtt() {
          
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[0]);  
-        get_api(gtt[0], gtt_apis[0], client_http, NULL, NULL, 0);
+
+        // ?
+        ESP_LOGI(TAG, "FREE HEAP before api call: %"PRIu32, esp_get_free_heap_size());
+        get_api(gtt[0], gtt_apis[0], NULL, NULL, 0);
+        // ?
+        ESP_LOGI(TAG, "FREE HEAP after api call: %"PRIu32, esp_get_free_heap_size());
         xSemaphoreGive(client_http_mutex);
     }
 
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[1]);  
-        get_api(gtt[1], gtt_apis[1], client_http, NULL, NULL, 0);
+        // ?
+        ESP_LOGI(TAG, "FREE HEAP before api call: %"PRIu32, esp_get_free_heap_size());
+        get_api(gtt[1], gtt_apis[1], NULL, NULL, 0);
+        // ?
+        ESP_LOGI(TAG, "FREE HEAP after api call: %"PRIu32, esp_get_free_heap_size());
         xSemaphoreGive(client_http_mutex);
     }
 
@@ -167,8 +176,8 @@ void write_gtt() {
     el = (char *) "10";
     print_gtt_info(gtt[1], col2_x, top_y, row_spacing, el);
 
-    if (gtt[0] != NULL) free(gtt[0]);
-    if (gtt[1] != NULL) free(gtt[1]);
+    free(gtt[0]);
+    free(gtt[1]);
 }
 
 void get_city_info(char weather_api[512], char city_name[50], nvs_handle_t nvs_handler) {
@@ -187,7 +196,6 @@ void get_city_info(char weather_api[512], char city_name[50], nvs_handle_t nvs_h
     ESP_LOGI(TAG, "WHEATHER API FOR %s: %s", city_name, weather_api);
 }
 
-
 void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     char *weather = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     char *hourly = (char *) calloc(1000, sizeof(char));
@@ -204,7 +212,7 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
 
     if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
         ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
-        get_api(weather, weather_api, client_http, NULL, NULL, 0);
+        get_api(weather, weather_api, NULL, NULL, 0);
         xSemaphoreGive(client_http_mutex);
     }
 
@@ -322,22 +330,216 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     display.setTextSize(1);
 }
 
-void calendar_2(nvs_handle_t nvs_handler) {
+
+typedef struct {
+    uint8_t h;
+    uint8_t m;
+} Date;
+
+typedef struct {
+    char title[50];
+    Date start;
+    Date end;
+} Event;
+
+
+Date parse_datetime(const char *datetime) {
+    Date d = {0, 0};  // Inizializza con 0
+    int hour, minute;
+
+    if (sscanf(datetime, "%*d-%*d-%*dT%d:%d", &hour, &minute) == 2) {
+        d.h = (uint8_t)hour;
+        d.m = (uint8_t)minute;
+    }
+    else ESP_LOGE(TAG, "ERROR IN PARSING DATE"); 
+
+    return d;
+}
+
+
+void decompose_events_to_struct(char *raw_events, Event *events, uint8_t *events_number) {
+
+    char *events_dec = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
+    char *json_events[MAX_EVENTS_PER_USER];
+    char *start_date = (char *) calloc(200, sizeof(char));
+    char *end_date = (char *) calloc(200, sizeof(char));
+    char *raw_date = (char *) calloc(30, sizeof(char));
+    int events_length = -1;
+    for (int i = 0; i < MAX_EVENTS_PER_USER; i++) json_events[i] = (char *) calloc(500, sizeof(char));
+    
+    
+    decompose_json_dynamic_params(raw_events, 1, "items", events_dec); 
+    from_string_to_json_string_vec(events_dec, json_events, &events_length);
+    
+    if (events_length > 10) {
+        ESP_LOGW(TAG, "WARNING: TOO MUCH EVENTS, ONLY THE FIRST %d EVENTS WILL BE SHOWN", MAX_EVENTS_PER_USER);
+        events_length = 10;
+    }
+
+    *events_number += events_length;
+
+
+    for (int i = 0; i < events_length; i++) {
+        decompose_json_dynamic_params(json_events[i], 3, "summary", events[i].title, "start", start_date, "end", end_date);
+        if (start_date[0] == '\0' || end_date[0] == '\0') {
+            ESP_LOGE(TAG, "%s NOT DECOMPOSED", json_events[i]);
+            continue;
+        }
+        decompose_json_dynamic_params(start_date, 1, "dateTime", raw_date);
+        if (raw_date[0] == '\0') {
+            ESP_LOGE(TAG, "%s\n DATE START DOES NOT TRANSLATED", json_events[i]);
+            continue;
+        }
+        events[i].start = parse_datetime(raw_date);
+        decompose_json_dynamic_params(end_date, 1, "dateTime", raw_date);
+        if (raw_date[0] == '\0') {
+            ESP_LOGE(TAG, "%s\n DATE END DOES NOT TRANSLATED", json_events[i]);
+            continue;
+        }
+        events[i].end = parse_datetime(raw_date);
+    }
+
+    for (int i = 0; i < MAX_EVENTS_PER_USER; i++) free(json_events[i]);
+    free(raw_date);
+    free(end_date);
+    free(start_date);
+    free(events_dec);
+}
+
+
+int compare_events(const void *a, const void *b) {
+    Event *eventA = *(Event **)a;
+    Event *eventB = *(Event **)b;
+
+    if (eventA->start.h != eventB->start.h) 
+        return eventA->start.h - eventB->start.h;
+    
+    return eventA->start.m - eventB->start.m;
+}
+
+void sort_events(Event events[2][MAX_CALENDARS_EPAPER][MAX_EVENTS_PER_USER], Event *sorted_events[2][MAX_EVENTS_PER_USER]) {
+    for (int user = 0; user < 2; user++) {
+        int event_count = 0;
+
+        for (int cal = 0; cal < MAX_CALENDARS_EPAPER; cal++) {
+            for (int evt = 0; evt < MAX_EVENTS_PER_USER; evt++) {
+                if (events[user][cal][evt].title[0] != '\0') {
+                    if (event_count < MAX_EVENTS_PER_USER) { // Prevent overflow
+                        sorted_events[user][event_count] = &events[user][cal][evt];
+                        event_count++;
+                    }
+                }
+            }
+        }
+
+        qsort(sorted_events[user], event_count, sizeof(Event *), compare_events);
+
+        for (int i = event_count; i < MAX_EVENTS_PER_USER; i++) {
+            sorted_events[user][i] = NULL;
+        }
+    }
+}
+
+// ChatGPT makes good print functions 
+void printEvents(Event events[2][MAX_CALENDARS_EPAPER][MAX_EVENTS_PER_USER]) {
+    for (int user = 0; user < 2; user++) {
+        printf("\n==============================\n");
+        printf("         User %d\n", user + 1);
+        printf("==============================\n");
+
+        for (int cal = 0; cal < MAX_CALENDARS_EPAPER; cal++) {
+            printf("\n  --- Calendar %d ---\n", cal + 1);
+
+            for (int ev = 0; ev < MAX_EVENTS_PER_USER; ev++) {
+                Event e = events[user][cal][ev];
+
+                if (e.title[0] == '\0') continue;
+
+                printf("  📌 %s\n", e.title);
+                printf("     ⏳ %02d:%02d - %02d:%02d\n",
+                       e.start.h, e.start.m, e.end.h, e.end.m);
+            }
+        }
+    }
+}
+
+
+void init_events(Event event[2][MAX_CALENDARS_EPAPER][MAX_EVENTS_PER_USER]) {
+    for (size_t i = 0; i < 2; i++) {
+        for (size_t j = 0; j < MAX_CALENDARS_EPAPER; j++) {
+            for (size_t k = 0; k < MAX_EVENTS_PER_USER; k++) {
+                event[i][j][k].title[0] = '\0';
+            }
+        }
+    }
+}
+
+
+void print_sorted_events(Event *(sorted_events[2][MAX_EVENTS_PER_USER])) {
+    for (int user = 0; user < 2; user++) {
+        printf("User %d's sorted events:\n", user + 1);
+        for (int i = 0; i < MAX_EVENTS_PER_USER; i++) {
+            if (sorted_events[user][i] != NULL) {
+                printf("  [%02d:%02d] %s\n", sorted_events[user][i]->start.h, sorted_events[user][i]->start.m, sorted_events[user][i]->title);
+            }
+        }
+        printf("\n");
+    }
+}
+
+
+void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int block_width, int block_height) {
+    display.setFont(&FreeMonoBold9pt7b);
+    display.setTextSize(1);
+
+    int padding = 5;
+    int16_t x_end, y_end, centeredX;
+    uint16_t w, h;
+    
+    int titleX = pos_x + padding;
+    int titleY = pos_y + 30;
+    
+    display.setCursor(titleX, titleY);
+    display.getTextBounds(event.title, pos_x, pos_y, &x_end, &y_end, &w, &h);
+    display.print(event.title);
+
+    char timeBuffer[20];
+
+    sprintf(timeBuffer, "%02d:%02d-%02d:%02d", event.start.h, event.start.m, event.end.h, event.end.m);
+    display.setFont(&FreeMonoBold9pt7b);
+    display.getTextBounds(timeBuffer, pos_x, pos_y, &x_end, &y_end, &w, &h);
+    int timeX = pos_x + block_width - padding - w;
+    display.setCursor(timeX, pos_y + padding + 10);
+    display.print(timeBuffer);
+
+    display.drawRect(pos_x, pos_y, block_width, block_height, EPD_BLACK);
+}
+
+
+
+void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     char *url = (char *) calloc(strlen(CALENDAR_ELEMENTS_LINK) + 1024 + 400, sizeof(char)); // 400 may be sufficient for dates
+    char *res = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     char *calendars; 
-    char *events;
+    char **calendars_list;
+    
+    Event events[2][MAX_CALENDARS_EPAPER][MAX_EVENTS_PER_USER];
+    init_events(events);
 
-    display.drawLine(SECOND_COLUMN, 0, SECOND_COLUMN, SCREEN_HEIGHT, EPD_BLACK);
+    uint8_t events_number[2] = {0};
 
-    // Write names
-
+    int calendar_list_len;
     int16_t x_pos = 0, y_pos = 26, x_end, y_end, centeredX;
     uint16_t w = 0, h, x_center, y_center;
     char *name;
+
     char key[17];
     display.setFont(&FreeMonoBold12pt7b);
     display.setTextSize(1);
     
+    display.drawLine(SECOND_COLUMN, 0, SECOND_COLUMN, SCREEN_HEIGHT, EPD_BLACK);
+
+    // Write names    
     for (int i = 1; i < 3; i++) {
         // Print names
         sprintf(key, "user_%d", i);
@@ -350,29 +552,80 @@ void calendar_2(nvs_handle_t nvs_handler) {
         ESP_LOGI(TAG, "X_Center %d", x_center);
         display.setCursor(x_center, y_pos);
         display.println(name);
+        if (name) free(name);
     }
 
-    y_pos = display.getCursorY();
+    y_pos = display.getCursorY() - 5;
 
     display.drawLine(FIRST_COLUMN, y_pos, SCREEN_WIDTH, y_pos, EPD_BLACK);
 
     // Get all calendars and do correct calculations
-    
+    uint16_t max_height = SCREEN_HEIGHT - y_pos;
+
+
+    // ?
+    ESP_LOGI(TAG, "FREE HEAP before first loop: %"PRIu32, esp_get_free_heap_size());
+
     for (int i = 1; i < 3; i++) {
         sprintf(key, "user_%d_ids", i);
-        get_from_nvs(nvs_handler, key, &calendars, NULL);
-        // from_string_to_string_array();
+        if (get_from_nvs(nvs_handler, key, &calendars, NULL) != ESP_OK) continue;
 
-        // sprintf(url, CALENDAR_ELEMENTS_LINK, );
+        from_string_to_string_array(calendars, &calendars_list, &calendar_list_len);
+
+        if (calendar_list_len > MAX_CALENDARS_EPAPER) {
+            ESP_LOGE(TAG, "FATAL: TOO MANY CALENDARs for user_%d", i);
+            esp_restart();
+        }
+
+        for (int j = 0; j < calendar_list_len; j++) {
+            sprintf(url, CALENDAR_ELEMENTS_LINK, calendars_list[j], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+            get_api_oauth2(res, url, nvs_handler, i);
+            ESP_LOGI(TAG, "RES: %s", res);
+            
+            if (res[0] == '\0') continue;
+
+            decompose_events_to_struct(res, events[i - 1][j], &events_number[i]);
+            memset(res, 0, MAX_HTTP_OUTPUT_BUFFER);
+        }
+
+        free(calendars);
+        free_string_array(calendars_list, calendar_list_len);
     }
 
+    // ?
+    ESP_LOGI(TAG, "FREE HEAP after first loop: %"PRIu32, esp_get_free_heap_size());
 
 
+    ESP_LOGI(TAG, "GET THE FIRST 10 EVENTS PER USER AND MAKE PROPORTION OF SCREEN");
 
+    Event *sorted_events[2][MAX_EVENTS_PER_USER] = { NULL };
 
+    sort_events(events, sorted_events);
 
-    free(name);
-    free(calendars);
+    print_sorted_events(sorted_events);
+
+    x_pos = 0;
+    y_pos +=10;
+    int block_width = 230;
+
+    // ?
+    ESP_LOGI(TAG, "FREE HEAP before second loop: %"PRIu32, esp_get_free_heap_size());
+    for (int i = 0; i < 2; i++) {
+        x_pos = i == 0 ? SECOND_COLUMN - block_width : SECOND_COLUMN;
+
+        for (int j = 0; j < MAX_EVENTS_PER_USER; j++) {
+        
+            if (sorted_events[i][j] != NULL) {
+                draw_event_block(*(sorted_events[i][j]), x_pos, y_pos, block_width, 70);
+                y_pos += 80;
+            }
+        }
+    }
+
+    // ?
+    ESP_LOGI(TAG, "FREE HEAP after second loop: %"PRIu32, esp_get_free_heap_size());
+
+    free(res);
     free(url);
 }
 
@@ -395,7 +648,7 @@ void calendar_0() {
 
 }
 
-void write_calendar(nvs_handle_t nvs_handler) {
+void write_calendar(struct tm timeinfo, nvs_handle_t nvs_handler) {
     // For each user and for each calendar of that user 
     char *name;
     char key[17];
@@ -404,21 +657,26 @@ void write_calendar(nvs_handle_t nvs_handler) {
     nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
     for (int i = 1; i < 3; i++) {
-        // Print names
+        // Count names
         sprintf(key, "user_%d", i);
-        
         get_from_nvs(nvs_handler, key, &name, &length);
-        ESP_LOGI(TAG, "%s %s", key, name);
         if (strcmp(name, "NULL") != 0) users_number++;
+        if (name) free(name);
     }
 
     switch (users_number) {
         case 0: calendar_0(); break;
         case 1: calendar_0(); break;
-        case 2: calendar_2(nvs_handler); break;
+        case 2: {
+            // ?
+            ESP_LOGI(TAG, "FREE HEAP before calendar_2(): %"PRIu32, esp_get_free_heap_size());
+            calendar_2(nvs_handler, timeinfo);
+            // ?
+            ESP_LOGI(TAG, "FREE HEAP after calendar_2(): %"PRIu32, esp_get_free_heap_size());
+            break;
+        }
     }
 
-    free(name);
 }
 
 
@@ -480,7 +738,8 @@ void start_screen(void *pvParameters) {
     write_gtt();
     write_time(timeinfo);
     write_meteo(timeinfo, nvs_handler);
-    write_calendar(nvs_handler);
+    write_calendar(timeinfo, nvs_handler);
+
 
     ESP_LOGI(TAG, "Writing success!");
 

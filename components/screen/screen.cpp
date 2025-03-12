@@ -549,7 +549,6 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
         x_center = FIRST_COLUMN + (((SECOND_COLUMN - FIRST_COLUMN) * (2*i - 1)) - w)/2;
 
-        ESP_LOGI(TAG, "X_Center %d", x_center);
         display.setCursor(x_center, y_pos);
         display.println(name);
         if (name) free(name);
@@ -580,7 +579,6 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
         for (int j = 0; j < calendar_list_len; j++) {
             sprintf(url, CALENDAR_ELEMENTS_LINK, calendars_list[j], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
             get_api_oauth2(res, url, nvs_handler, i);
-            ESP_LOGI(TAG, "RES: %s", res);
             
             if (res[0] == '\0') continue;
 

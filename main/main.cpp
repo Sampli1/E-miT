@@ -36,6 +36,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    esp_log_level_set("httpd", ESP_LOG_VERBOSE);
     
     // Set WiFi and time synchronization
     wifi_and_time_init_sta();
@@ -50,12 +51,11 @@ void app_main(void) {
     client_http_mutex = xSemaphoreCreateMutex();
     
     // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 1024 * 15, NULL, 1, NULL);
+    xTaskCreate(start_server, "SERVER", 1024 * 5, NULL, 5, NULL);
 
     // Routine to start getting screen resources and display it
-    xTaskCreate(start_screen, "SCREEN", 5 * 1024, NULL, 5, NULL);
+    xTaskCreate(start_screen, "SCREEN", 1024*10, NULL, 3, NULL);
 
-    // LOOP
     // Routine of peripherals
     // xTaskCreate(start_gpio, "GPIO", 1024, NULL, 4, NULL);
 }

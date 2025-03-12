@@ -292,7 +292,7 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     display.setTextSize(1);
     const int x_base = 30;
     const int y_base = 350;
-    const int chart_width = 150;
+    const int chart_width = 200;
     const int chart_height = 100;
     char buffer[10] = { '\0' };
 
@@ -343,6 +343,8 @@ typedef struct {
 } Event;
 
 
+
+
 Date parse_datetime(const char *datetime) {
     Date d = {0, 0};  // Inizializza con 0
     int hour, minute;
@@ -371,9 +373,9 @@ void decompose_events_to_struct(char *raw_events, Event *events, uint8_t *events
     decompose_json_dynamic_params(raw_events, 1, "items", events_dec); 
     from_string_to_json_string_vec(events_dec, json_events, &events_length);
     
-    if (events_length > 10) {
+    if (events_length > MAX_EVENTS_PER_USER) {
         ESP_LOGW(TAG, "WARNING: TOO MUCH EVENTS, ONLY THE FIRST %d EVENTS WILL BE SHOWN", MAX_EVENTS_PER_USER);
-        events_length = 10;
+        events_length = MAX_EVENTS_PER_USER;
     }
 
     *events_number += events_length;
@@ -488,7 +490,53 @@ void print_sorted_events(Event *(sorted_events[2][MAX_EVENTS_PER_USER])) {
 }
 
 
-void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int block_width, int block_height) {
+void shift_events(Event *sorted_events[2][MAX_EVENTS_PER_USER], struct tm timeinfo) {
+    uint16_t current_time = timeinfo.tm_hour * 60 +  timeinfo.tm_min;
+
+    for (int user = 0; user < 2; user++) {
+        int shift_index = MAX_EVENTS_PER_USER;
+        int last_ongoing_event = -1;
+        
+        for (int i = 0; i < MAX_EVENTS_PER_USER; i++) {
+            if (sorted_events[user][i] == NULL) break;
+        
+            uint16_t event_start_time = sorted_events[user][i]->start.h * 60 + sorted_events[user][i]->start.m;
+            uint16_t event_end_time = (sorted_events[user][i]->end.h < sorted_events[user][i]->start.h  ? sorted_events[user][i]->end.h + 24 : sorted_events[user][i]->end.h) * 60 + sorted_events[user][i]->end.m;
+            
+
+            printf("TITLE %s, start %d, end %d\n", sorted_events[user][i]->title, event_end_time, event_start_time);
+
+            if (event_start_time <= current_time && event_end_time > current_time) {
+                last_ongoing_event = i;
+            }
+            
+            if (event_end_time > current_time && shift_index == MAX_EVENTS_PER_USER) {
+                shift_index = i;
+            }
+        }
+
+        if (last_ongoing_event != -1) {
+            shift_index = last_ongoing_event;
+        }
+
+
+
+
+        int new_index = 0;
+        for (int i = shift_index; i < MAX_EVENTS_PER_USER; i++) {
+            if (sorted_events[user][i] == NULL) break;
+            sorted_events[user][new_index++] = sorted_events[user][i];
+        }
+        
+        for (int i = new_index; i < MAX_EVENTS_PER_USER; i++) {
+            sorted_events[user][i] = NULL;
+        }
+    }
+}
+
+
+void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int block_width, int block_height) {
+    char word[2] = { 0 };
     display.setFont(&FreeMonoBold9pt7b);
     display.setTextSize(1);
 
@@ -500,8 +548,28 @@ void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int block_width
     int titleY = pos_y + 30;
     
     display.setCursor(titleX, titleY);
-    display.getTextBounds(event.title, pos_x, pos_y, &x_end, &y_end, &w, &h);
-    display.print(event.title);
+    int title_len = strlen(event.title); 
+    for (int i = 0; i < title_len; i++) {
+        word[0] = event.title[i];
+        display.getTextBounds(word, titleX, titleY, &x_end, &y_end, &w, &h);
+        if ((index == 0 && x_end >= SECOND_COLUMN - padding) || (index == 1 && x_end >= SECOND_COLUMN + block_width - padding)) {
+            // Start new line
+            display.println("");
+            i--;
+            titleX = pos_x + padding;
+            if (display.getCursorY() > pos_y + block_height) {
+                // Out of the box, stop writing
+                break;
+            }
+        }
+        else {
+            display.print(event.title[i]); 
+            titleX = display.getCursorX();
+        }
+        titleY = display.getCursorY();
+        display.setCursor(titleX, titleY);
+    }
+
 
     char timeBuffer[20];
 
@@ -556,14 +624,9 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
     y_pos = display.getCursorY() - 5;
 
-    display.drawLine(FIRST_COLUMN, y_pos, SCREEN_WIDTH, y_pos, EPD_BLACK);
-
     // Get all calendars and do correct calculations
     uint16_t max_height = SCREEN_HEIGHT - y_pos;
 
-
-    // ?
-    ESP_LOGI(TAG, "FREE HEAP before first loop: %"PRIu32, esp_get_free_heap_size());
 
     for (int i = 1; i < 3; i++) {
         sprintf(key, "user_%d_ids", i);
@@ -577,21 +640,18 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
         }
 
         for (int j = 0; j < calendar_list_len; j++) {
-            sprintf(url, CALENDAR_ELEMENTS_LINK, calendars_list[j], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+            sprintf(url, CALENDAR_ELEMENTS_LINK, calendars_list[j], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 0, 0, 0, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
             get_api_oauth2(res, url, nvs_handler, i);
             
             if (res[0] == '\0') continue;
 
-            decompose_events_to_struct(res, events[i - 1][j], &events_number[i]);
+            decompose_events_to_struct(res, events[i - 1][j], &(events_number[i]));
             memset(res, 0, MAX_HTTP_OUTPUT_BUFFER);
         }
 
         free(calendars);
         free_string_array(calendars_list, calendar_list_len);
     }
-
-    // ?
-    ESP_LOGI(TAG, "FREE HEAP after first loop: %"PRIu32, esp_get_free_heap_size());
 
 
     ESP_LOGI(TAG, "GET THE FIRST 10 EVENTS PER USER AND MAKE PROPORTION OF SCREEN");
@@ -600,28 +660,54 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
     sort_events(events, sorted_events);
 
-    print_sorted_events(sorted_events);
+
 
     x_pos = 0;
     y_pos +=10;
     int block_width = 230;
+    int block_height = 55;
+    
+    // Shift events
+    shift_events(sorted_events, timeinfo);
 
-    // ?
-    ESP_LOGI(TAG, "FREE HEAP before second loop: %"PRIu32, esp_get_free_heap_size());
+    print_sorted_events(sorted_events);
+    
+    
+    Event *start_event = NULL;
+    // get minimum
+    if (sorted_events[0][0] == NULL) start_event = sorted_events[1][0];
+    else if (sorted_events[1][0] == NULL) start_event = sorted_events[0][0];
+    else start_event = (compare_events(&(sorted_events[0][0]),&(sorted_events[1][0])) < 0) ? sorted_events[0][0] : sorted_events[1][0];
+    
+
+    if (start_event == NULL) {
+        free(res);
+        free(url);
+        return;
+    }
+
+    float ratio;
+    int actual_height;
+    int actual_y;
+
     for (int i = 0; i < 2; i++) {
         x_pos = i == 0 ? SECOND_COLUMN - block_width : SECOND_COLUMN;
-
         for (int j = 0; j < MAX_EVENTS_PER_USER; j++) {
-        
             if (sorted_events[i][j] != NULL) {
-                draw_event_block(*(sorted_events[i][j]), x_pos, y_pos, block_width, 70);
-                y_pos += 80;
+
+                // Gap calculation
+                ratio = ((sorted_events[i][j]->start.h * 60 + sorted_events[i][j]->start.m) - (start_event->start.h * 60 + start_event->start.m))/60.0;
+                actual_y = y_pos + (ratio * block_height) - 2;
+
+                // Block dimension
+                ratio = (((sorted_events[i][j]->end.h < sorted_events[i][j]->start.h  ? sorted_events[i][j]->end.h + 24 : sorted_events[i][j]->end.h) * 60 + sorted_events[i][j]->end.m) - (sorted_events[i][j]->start.h * 60 + sorted_events[i][j]->start.m))/60.0;
+                actual_height = ratio * block_height;                
+
+
+                draw_event_block(*(sorted_events[i][j]), x_pos, actual_y, i, block_width, actual_height);
             }
         }
     }
-
-    // ?
-    ESP_LOGI(TAG, "FREE HEAP after second loop: %"PRIu32, esp_get_free_heap_size());
 
     free(res);
     free(url);
@@ -666,11 +752,7 @@ void write_calendar(struct tm timeinfo, nvs_handle_t nvs_handler) {
         case 0: calendar_0(); break;
         case 1: calendar_0(); break;
         case 2: {
-            // ?
-            ESP_LOGI(TAG, "FREE HEAP before calendar_2(): %"PRIu32, esp_get_free_heap_size());
             calendar_2(nvs_handler, timeinfo);
-            // ?
-            ESP_LOGI(TAG, "FREE HEAP after calendar_2(): %"PRIu32, esp_get_free_heap_size());
             break;
         }
     }
@@ -732,7 +814,7 @@ void start_screen(void *pvParameters) {
     nvs_handle_t nvs_handler;
     nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
-    write_separator();
+    // write_separator();
     write_gtt();
     write_time(timeinfo);
     write_meteo(timeinfo, nvs_handler);

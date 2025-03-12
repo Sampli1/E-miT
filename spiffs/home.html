@@ -140,11 +140,19 @@
             transform: translateX(26px);
         }
 
+        .calendars {
+            width: 500px;
+            h2 {
+                max-width: 80%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+       }
+
     </style>
 </head>
 <body>
     <div class="header">
-        <button id="loginButton" class="header_button" onclick="window.location.href='OAUTH2_LINK'">Login</button>
         <button id="restartButton" class="header_button" onclick="restart()">Restart</button>
     </div>
     <div class="container">
@@ -153,15 +161,6 @@
             <input type="text" id="inputBox0" placeholder="Scrivi nome città">
             <button onclick="convertCityToCoordinates('inputBox0')">Imposta</button>
             <h3 id="city"></h3>
-        </div>
-        <div class="section">
-            <h2>Title</h2>
-            <div class="slider-container">
-                <label class="slider">
-                    <input type="checkbox" onchange="() => setGtt(this)">
-                    <span class="slider-round"></span>
-                </label>
-            </div>
         </div>
     </div>
     <div class="container">
@@ -181,15 +180,15 @@
         
     </div>
     <div class="container">
-        <div class="section">
-            <h2>Seleziona calendari:</h2>
-            <h2 id="user_1"></h2>
+        <div class="section calendars">
+            <h3>Seleziona calendari:</h3>
+            <h3 id="user_1"></h3>
             <ul id="itemList1"></ul>
         </div>
 
-        <div class="section">
-            <h2>Seleziona calendari:</h2>
-            <h2 id="user_2"></h2>
+        <div class="section calendars">
+            <h3>Seleziona calendari:</h3>
+            <h3 id="user_2"></h3>
             <ul id="itemList2"></ul>
         </div>
     </div>

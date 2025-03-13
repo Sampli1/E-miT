@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home</title>
     <style>
+
+        html {
+            width: 100vw;
+            height: 100vh;
+        }
+
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -14,16 +20,74 @@
             align-items: center;
         }
 
+        .dashboard {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+        }
+
+        .button-3 {
+        appearance: none;
+        background-color: #2ea44f;
+        border: 1px solid rgba(27, 31, 35, .15);
+        border-radius: 6px;
+        box-shadow: rgba(27, 31, 35, .1) 0 1px 0;
+        box-sizing: border-box;
+        color: #fff;
+        cursor: pointer;
+        display: inline-block;
+        font-family: -apple-system,system-ui,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 20px;
+        padding: 6px 16px;
+        position: relative;
+        text-align: center;
+        text-decoration: none;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        vertical-align: middle;
+        white-space: nowrap;
+        }
+
+        .button-3:focus:not(:focus-visible):not(.focus-visible) {
+        box-shadow: none;
+        outline: none;
+        }
+
+        .button-3:hover {
+        background-color: #2c974b;
+        }
+
+        .button-3:focus {
+        box-shadow: rgba(46, 164, 79, .4) 0 0 0 3px;
+        outline: none;
+        }
+
+        .button-3:disabled {
+        background-color: #94d3a2;
+        border-color: rgba(27, 31, 35, .1);
+        color: rgba(255, 255, 255, .8);
+        cursor: default;
+        }
+
+        .button-3:active {
+        background-color: #298e46;
+        box-shadow: rgba(20, 70, 32, .2) 0 1px 0 inset;
+        }
+
         .header {
             background-color: #4CAF50; 
             padding: 20px;
-            width: 100%;
-            text-align: center;
+            width: calc(100% - 40px);
+            text-align: end;
+            
         }
 
         .header_button {
             background-color: white; 
-            color: #4CAF50; 
+            color: black; 
             padding: 15px 32px;
             font-size: 16px;
             border: none;
@@ -39,13 +103,14 @@
             display: flex;
             flex-wrap: wrap; 
             justify-content: center;
-            width: 100%;
             margin-top: 20px;
             padding: 0 10px; 
         }
 
         .section {
             width: 300px;
+            height: fit-content;
+            min-height: 200px;
             margin: 10px; 
             padding: 10px;
             border: 1px solid #ccc;
@@ -84,11 +149,38 @@
             border-radius: 4px;
         }
 
-        @media (max-width: 768px) {
-            .section {
-                width: 90%; 
+
+        @media (max-width: 700px) {
+            
+            .left {
+                width: 100% !important;
+                height: calc(100% + 20px + 10px) !important;
             }
+
+            .right {
+                width: 100% !important;
+                height: calc(100% + 20px + 10px) !important;
+            }
+
+            .section {
+                width: 100% !important;
+            }
+
+            .dashboard {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .special {
+                width: 100% !important;
+            }
+            
+            .container {
+                width: 100%;
+            }
+
         }
+
 
         .slider-container {
             display: flex;
@@ -141,13 +233,70 @@
         }
 
         .calendars {
-            width: 500px;
-            h2 {
+            width: 100%;
+            h3 {
                 max-width: 80%;
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
        }
+
+       .left {
+            width: 40%;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+       }
+
+       .right {
+            width: 60%;
+            display: flex;
+            justify-content: center;
+            flex-direction: row;
+            flex-wrap: wrap;
+       }
+
+       #boxContainer {
+        display: flex;
+        flex-direction: column;
+       }
+
+       .name-box {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px 0 0 0;
+            background-color: #ffffff;
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
+            border: 1px solid #d1d8e0; 
+            text-align: center;
+            font-size: 18px;
+            font-weight: 500;
+            color: black;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn {
+            cursor: pointer;
+            font-size: 20px;
+            margin: 0 0 0 0;
+            color: #e74c3c;
+            float: right;
+            font-weight: bold;
+            transition: color 0.2s ease;
+            border: 0;
+            background-color: #ffffff;
+        }
+
+        .close-btn:hover {
+            color: #c0392b;
+        }
+
+        .special {
+            width: calc(50% - 20px);
+            min-width: 350px;
+        }
 
     </style>
 </head>
@@ -155,42 +304,49 @@
     <div class="header">
         <button id="restartButton" class="header_button" onclick="restart()">Restart</button>
     </div>
-    <div class="container">
-        <div class="section">
-            <h2>Città</h2>
-            <input type="text" id="inputBox0" placeholder="Scrivi nome città">
-            <button onclick="convertCityToCoordinates('inputBox0')">Imposta</button>
-            <h3 id="city"></h3>
-        </div>
-    </div>
-    <div class="container">
-        <div class="section">
-            <h2>Aggiungi Nomi</h2>
-
-            <div>
-                <input type="text" id="nameInput" placeholder="Scrivi un nome" maxlength="14">
-                <button onclick="addName(false, null)">Invia</button>
+    <div class="dashboard">
+        <div class="left">
+            <div class="container">
+                <div class="section">
+                    <h2>City</h2>
+                    <input type="text" id="inputBox0" placeholder="Write a city">
+                    <button class="button-3" onclick="convertCityToCoordinates('inputBox0')">Set</button>
+                    <h3 id="name-box"></h3>
+                </div>
             </div>
+            <div class="container">
+                <div class="section">
+                    <h2>Name your calendars</h2>
 
-            <div class="box-container" id="boxContainer">
-                <!-- user_1 -->
-                <!-- user_2 -->
+                    <div>
+                        <input type="text" id="nameInput" placeholder="Write a name" maxlength="14">
+                        <button class="button-3" onclick="addName(false, null)">Set</button>
+                    </div>
+
+                    <div class="box-container" id="boxContainer">
+                        <!-- user_1 -->
+                        <!-- user_2 -->
+                    </div>
+                </div>
             </div>
         </div>
-        
-    </div>
-    <div class="container">
-        <div class="section calendars">
-            <h3>Seleziona calendari:</h3>
-            <h3 id="user_1"></h3>
-            <ul id="itemList1"></ul>
+        <div class="right">
+            <div class="container special">
+                <div class="section calendars">
+                    <h2>Choose your calendars:</h2>
+                    <h2 id="user_1"></h2>
+                    <ul id="itemList1"></ul>
+                </div>
+            </div>
+            <div class="container special">
+                <div class="section calendars">
+                    <h2>Choose your calendars:</h2>
+                    <h2 id="user_2"></h2>
+                    <ul id="itemList2"></ul>
+                </div>
+            </div>
         </div>
 
-        <div class="section calendars">
-            <h3>Seleziona calendari:</h3>
-            <h3 id="user_2"></h3>
-            <ul id="itemList2"></ul>
-        </div>
     </div>
 
     <script>
@@ -276,7 +432,7 @@
                             const section = document.createElement("div");
                             section.className = "subsection";
 
-                            const title = document.createElement("h2");
+                            const title = document.createElement("h3");
                             title.textContent = calendar.title; 
 
                             const sliderContainer = document.createElement("div");
@@ -431,8 +587,6 @@
             else name = name_val;
             let user_id = -1;
 
-            console.log(`NAMECOUNT ADD ${nameCount}`);
-
             switch (nameCount) {
                 case 0:
                     json = {
@@ -461,17 +615,19 @@
                     alert("2 users max");
                     return;
             }
-
+            
             if (name && nameCount < 2 && name != "NULL") {
                 appendName(name, user_id);
                 nameCount++;
 
 
                 if (!flag) {
+                    new_info = json;
                     let body = {
                         user_1: json["user_1"],
                         user_2: json["user_2"],
                     }
+                     
                     const response = await fetch('/set_users', {
                         method: 'POST',
                         headers: {
@@ -481,8 +637,8 @@
                     });
 
                     if (!response.ok) {
-                        console.log(response);
-                        return;
+                        new_info = json;
+                        return json;
                     }        
                 }
 

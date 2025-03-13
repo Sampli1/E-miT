@@ -218,14 +218,16 @@ static esp_err_t set_users_handler(httpd_req_t *req) {
 
     ESP_LOGI(TAG, "USER 1: %s\tUSER 2: %s", user_1, user_2);
     
-    if (strlen(user_1) == 0) {
+    if (strcmp(user_1, "NULL") == 0 || strlen(user_1) == 0) {
+        ESP_LOGI(TAG, "USER_1 INFO ERASED");
         nvs_erase_key(nvs_handler, "user_1");
         nvs_erase_key(nvs_handler, "user_1_at");
         nvs_erase_key(nvs_handler, "user_1_rt");
         nvs_erase_key(nvs_handler, "user_1_ids");
     }
     else nvs_set_str(nvs_handler, "user_1", user_1);
-    if (strlen(user_2) == 0) {
+    if (strcmp(user_2, "NULL") == 0 || strlen(user_2) == 0) {
+        ESP_LOGI(TAG, "USER_2 INFO ERASED");
         nvs_erase_key(nvs_handler, "user_2");
         nvs_erase_key(nvs_handler, "user_2_at");
         nvs_erase_key(nvs_handler, "user_2_rt");

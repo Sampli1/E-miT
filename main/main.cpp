@@ -51,10 +51,10 @@ void app_main(void) {
     client_http_mutex = xSemaphoreCreateMutex();
     
     // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 1024 * 5, NULL, 5, NULL);
+    xTaskCreate(start_server, "SERVER", 1024 * 4, NULL, 5, NULL);
 
     // Routine to start getting screen resources and display it
-    xTaskCreate(start_screen, "SCREEN", 1024*10, NULL, 3, NULL);
+    xTaskCreate(start_screen, "SCREEN", 1024*11, NULL, 3, NULL);
 
     // Routine of peripherals
     // xTaskCreate(start_gpio, "GPIO", 1024, NULL, 4, NULL);

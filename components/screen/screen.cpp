@@ -360,19 +360,24 @@ Date parse_datetime(const char *datetime) {
 
 
 void decompose_events_to_struct(char *raw_events, Event *events, uint8_t *events_number) {
-
     char *events_dec = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     char *json_events[MAX_EVENTS_PER_USER];
-    char *start_date = (char *) calloc(200, sizeof(char));
-    char *end_date = (char *) calloc(200, sizeof(char));
-    char *raw_date = (char *) calloc(30, sizeof(char));
     int events_length = -1;
     for (int i = 0; i < MAX_EVENTS_PER_USER; i++) json_events[i] = (char *) calloc(500, sizeof(char));
     
-    
     decompose_json_dynamic_params(raw_events, 1, "items", events_dec); 
     from_string_to_json_string_vec(events_dec, json_events, &events_length);
-    
+    if (events_length == 0 || strcmp(json_events[0], "[]") == 0) {
+        ESP_LOGI(TAG, "No events");
+        free(events_dec);
+        for (int i = 0; i < MAX_EVENTS_PER_USER; i++) free(json_events[i]);
+        return;
+    }
+
+    char *start_date = (char *) calloc(200, sizeof(char));
+    char *end_date = (char *) calloc(200, sizeof(char));
+    char *raw_date = (char *) calloc(30, sizeof(char));
+
     if (events_length > MAX_EVENTS_PER_USER) {
         ESP_LOGW(TAG, "WARNING: TOO MUCH EVENTS, ONLY THE FIRST %d EVENTS WILL BE SHOWN", MAX_EVENTS_PER_USER);
         events_length = MAX_EVENTS_PER_USER;
@@ -586,7 +591,7 @@ void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int 
 
 
 void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
-    char *url = (char *) calloc(strlen(CALENDAR_ELEMENTS_LINK) + 1024 + 400, sizeof(char)); // 400 may be sufficient for dates
+    char *url = (char *) calloc(strlen(CALENDAR_ELEMENTS_LINK) + 512 + 100, sizeof(char)); // 400 may be sufficient for dates
     char *res = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     char *calendars; 
     char **calendars_list;
@@ -632,7 +637,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
         sprintf(key, "user_%d_ids", i);
         if (get_from_nvs(nvs_handler, key, &calendars, NULL) != ESP_OK) continue;
 
-        from_string_to_string_array(calendars, &calendars_list, &calendar_list_len);
+        from_string_to_string_array(calendars, &calendars_list, &calendar_list_len);        
 
         if (calendar_list_len > MAX_CALENDARS_EPAPER) {
             ESP_LOGE(TAG, "FATAL: TOO MANY CALENDARs for user_%d", i);
@@ -651,6 +656,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
         free(calendars);
         free_string_array(calendars_list, calendar_list_len);
+        calendar_list_len = 0;
     }
 
 
@@ -733,6 +739,7 @@ void calendar_0() {
 }
 
 void write_calendar(struct tm timeinfo, nvs_handle_t nvs_handler) {
+
     // For each user and for each calendar of that user 
     char *name;
     char key[17];

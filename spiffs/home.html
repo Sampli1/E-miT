@@ -347,7 +347,12 @@
             start_info = JSON.parse(resText);
 
             start_info = await addName(true, start_info["user_1"], start_info);
+
+            console.log(start_info);
+
             start_info = await addName(true, start_info["user_2"], start_info);
+            
+            console.log(start_info);
 
             if (start_info["user_1_calendars"] == undefined) start_info["user_1_calendars"] = [];
             if (start_info["user_2_calendars"] == undefined) start_info["user_2_calendars"] = [];
@@ -434,12 +439,10 @@
                         ...json,
                         "user_1": name
                     };
-                    console.log(`NEW NEW_INFO ${new_info}`)
                     user_id = 1;
                     break;
                 case 1:
                     if (json["user_1"] == "NULL") {
-                        console.log(json["user_1"]);
                         json = {
                             ...json,
                             "user_1": name
@@ -447,7 +450,6 @@
                         user_id = 1;
                     } 
                     else {
-                        console.log(json["user_2"]);
                         json = {
                             ...json,
                             "user_2": name

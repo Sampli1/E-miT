@@ -1,4 +1,6 @@
-# From env to header file, python utils with the aim to transform .env file in a .h file
+#!/usr/bin/env python
+
+#  From env to header file, python utils with the aim to transform .env file in a .h file
 
 import os
 import re
@@ -19,7 +21,6 @@ env_variables = {}
 with open(".env") as file:
     for line in file:
         key, value = line.strip().split('=', 1)
-        # Risolvi le variabili ${} nel valore
         value = resolve_env_variable(value, env_variables)
         env_variables[key] = value
 

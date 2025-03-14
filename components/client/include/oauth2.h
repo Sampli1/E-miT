@@ -13,7 +13,7 @@ void token_management(char *code, char *scope, char *id);
 
 int refresh_token_managment(int id, char *response);
 
-esp_err_t get_api_oauth2(char *content, char *api_address, nvs_handle_t NVS, int id);
+esp_err_t get_api_oauth2(char *content, size_t content_length, char *api_address, nvs_handle_t NVS, int id);
 
 #ifdef __cplusplus
 }

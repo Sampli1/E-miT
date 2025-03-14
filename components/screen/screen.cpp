@@ -105,6 +105,7 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
     char *json_vec[20];
     int length;
     char *hour = (char *) calloc(100, sizeof(char));
+    char *time = (char *) calloc(50, sizeof(char));
     char *line = (char *) calloc(100, sizeof(char));
     for (int i = 0; i < 20; i++) json_vec[i] = (char*) calloc(MAX_POST_RES_LENGTH, sizeof(char));
 
@@ -115,7 +116,10 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
         decompose_json_dynamic_params(json_vec[i], 2, "hour", hour, "line", line);
         if (strcmp(line, line_val) == 0 && j < MAX_GTT_INFO) {
             display.setCursor(col1_x, top_y + (j + 1) * row_spacing);
-            display.print(hour);
+            strncpy(time, hour, 5);
+            time[5] = '\0';
+            display.print(time);
+            memset(time, 0, 50);
             j++;
         }
     }
@@ -292,7 +296,7 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     display.setTextSize(1);
     const int x_base = 30;
     const int y_base = 350;
-    const int chart_width = 200;
+    const int chart_width = 240;
     const int chart_height = 100;
     char buffer[10] = { '\0' };
 
@@ -646,7 +650,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
         for (int j = 0; j < calendar_list_len; j++) {
             sprintf(url, CALENDAR_ELEMENTS_LINK, calendars_list[j], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 0, 0, 0, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-            get_api_oauth2(res, url, nvs_handler, i);
+            get_api_oauth2(res, MAX_HTTP_OUTPUT_BUFFER, url, nvs_handler, i);
             
             if (res[0] == '\0') continue;
 

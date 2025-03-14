@@ -108,7 +108,7 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
     // Get list of calendars
     char *response = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
 
-    if (get_api_oauth2(response, CALENDAR_LIST_LINK, NVS, atoi(id)) != ESP_OK) {
+    if (get_api_oauth2(response, MAX_HTTP_OUTPUT_BUFFER, CALENDAR_LIST_LINK, NVS, atoi(id)) != ESP_OK) {
         free(response);
         httpd_resp_send_404(req);
         nvs_close(NVS);

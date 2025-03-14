@@ -57,6 +57,6 @@ void app_main(void) {
     xTaskCreate(start_screen, "SCREEN", 1024*11, NULL, 3, NULL);
 
     // Routine of peripherals
-    // xTaskCreate(start_gpio, "GPIO", 1024, NULL, 4, NULL);
+    xTaskCreate(start_gpio, "GPIO", 1024 * 2, NULL, 4, NULL);
 }
 

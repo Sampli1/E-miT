@@ -7,6 +7,8 @@ static const char *TAG = "OAUTH2";
 // ! NO THREAD SAFE
 int refresh_token_managment(int id, char *response) {
     // Check if response has UNAUTHENTICATED status
+    ESP_LOGI(TAG, "ASK REFRESH TOKEN FOR USER_%d", id);
+
     char *error = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char)), *status = calloc(100, sizeof(char));
     decompose_json_dynamic_params(response, 1, "error", error);
     decompose_json_dynamic_params(error, 1, "status", status);
@@ -143,7 +145,7 @@ void token_management(char *code, char *scope, char* id) {
 }
 
 // ! THREAD SAFE
-esp_err_t get_api_oauth2(char *content, char *api_address, nvs_handle_t NVS, int id) {
+esp_err_t get_api_oauth2(char *content, size_t content_length, char *api_address, nvs_handle_t NVS, int id) {
     char at_key[17] = {0};
     ESP_LOGI(TAG, "ID %d", id);
     sprintf(at_key, "user_%d_at", id);
@@ -182,8 +184,7 @@ esp_err_t get_api_oauth2(char *content, char *api_address, nvs_handle_t NVS, int
                 if (refresh_token_managment(id, content)) {
                     free(access_token);
                     get_from_nvs(NVS, at_key, &access_token, &total_size);
-
-                    
+                    memset(content, 0, content_length);
                     sprintf(headers_values[1], "Bearer %s", access_token);
                     attempt++;
                     continue; 
@@ -191,6 +192,7 @@ esp_err_t get_api_oauth2(char *content, char *api_address, nvs_handle_t NVS, int
             }
 
             // Maybe this user doesn't exist
+            memset(content, 0, content_length);
             free(access_token);
             free(headers_values[1]);
             xSemaphoreGive(client_http_mutex);  

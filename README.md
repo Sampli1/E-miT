@@ -1,4 +1,4 @@
-# E-paper Dashboard
+# E-miT
 
 ## Description
 
@@ -18,7 +18,7 @@ TODO
 
 - ESP-IDF installed and properly configured
 - ESP32 toolchain
-- Python 3 with `pip` installed
+- Python
 - An ngrok account with a static domain configured
 - A Google Calendar account with API access enabled
 - A static IP configured for the ESP32 in the router
@@ -67,7 +67,7 @@ The project is structured as follow:
 A special thanks to:
 - [madbob](https://github.com/madbob) for the GTT API
 - [martinberlin](https://github.com/martinberlin) for the e-paper utilities
-
+- [zsegre](https://github.com/zserge) for the [JSON parser](https://github.com/zserge/jsmn) 
 
 ## License
 

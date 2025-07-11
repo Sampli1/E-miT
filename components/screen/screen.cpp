@@ -29,6 +29,7 @@
 #define SECOND_COLUMN 550
 #define HOURS_IN_A_DAY 24
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 static const char *TAG = "SCREEN";
 
@@ -134,7 +135,6 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
     free(line);
     free(time);
 }
-
 
 void write_gtt() {
     int col1_x = 30;
@@ -330,7 +330,6 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     free(wheaters);
 }
 
-
 typedef struct {
     uint8_t h;
     uint8_t m;
@@ -389,6 +388,9 @@ void decompose_events_to_struct(char *raw_events, Event *events, uint8_t *events
             continue;
         }
         decompose_json_dynamic_params(start_date, 1, "dateTime", raw_date);
+
+        
+        // All day events => Does not supported yet
         if (raw_date[0] == '\0') {
             ESP_LOGE(TAG, "%s\n DATE START DOES NOT TRANSLATED", json_events[i]);
             continue;
@@ -532,9 +534,9 @@ void shift_events(Event *sorted_events[2][MAX_EVENTS_PER_USER], struct tm timein
 }
 
 
-void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int block_width, int block_height) {
+int draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int block_width, int block_height, int reduce) {
     char word[2] = { 0 };
-    display.setFont(&FreeMonoBold9pt7b);
+    display.setFont(reduce ? &FreeSans9pt7b: &FreeMonoBold9pt7b);
     display.setTextSize(1);
 
     int padding = 5;
@@ -544,12 +546,13 @@ void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int 
     int titleX = pos_x + padding;
     int titleY = pos_y + 30;
     
+    // Description
     display.setCursor(titleX, titleY);
     int title_len = strlen(event.title); 
     for (int i = 0; i < title_len; i++) {
         word[0] = event.title[i];
         display.getTextBounds(word, titleX, titleY, &x_end, &y_end, &w, &h);
-        if ((index == 0 && x_end >= SECOND_COLUMN - padding) || (index == 1 && x_end >= SECOND_COLUMN + block_width - padding)) {
+        if ((index == 0 && x_end >= pos_x + block_width - padding) || (index == 1 && x_end >= pos_x + block_width - padding)) { // review math
             // Start new line
             display.println("");
             i--;
@@ -570,16 +573,53 @@ void draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int 
 
     char timeBuffer[20];
 
+    // Time
     sprintf(timeBuffer, "%02d:%02d-%02d:%02d", event.start.h, event.start.m, event.end.h, event.end.m);
-    display.setFont(&FreeMonoBold9pt7b);
+    display.setFont(reduce ? &FreeSans9pt7b: &FreeMonoBold9pt7b);
     display.getTextBounds(timeBuffer, pos_x, pos_y, &x_end, &y_end, &w, &h);
     int timeX = pos_x + block_width - padding - w;
     display.setCursor(timeX, pos_y + padding + 10);
     display.print(timeBuffer);
 
     display.drawRect(pos_x, pos_y, block_width, block_height, EPD_BLACK);
+
+
+    return titleY;
 }
 
+void calculate_event_overlaps(Event *sorted_events[2][MAX_EVENTS_PER_USER], uint8_t overlaps[2][MAX_EVENTS_PER_USER], uint8_t offset_index[2][MAX_EVENTS_PER_USER]) {
+    for (int user = 0; user < 2; user++) {
+        for (int i = 0; i < MAX_EVENTS_PER_USER; i++) {
+            if (sorted_events[user][i] == NULL) {
+                overlaps[user][i] = 0;
+                offset_index[user][i] = 0;
+                continue;
+            }
+
+            uint16_t s_i = sorted_events[user][i]->start.h * 60 + sorted_events[user][i]->start.m;
+            uint16_t e_i = (sorted_events[user][i]->end.h < sorted_events[user][i]->start.h
+                            ? sorted_events[user][i]->end.h + 24
+                            : sorted_events[user][i]->end.h) * 60 + sorted_events[user][i]->end.m;
+
+            overlaps[user][i] = 1;
+            offset_index[user][i] = 0;
+
+            for (int j = 0; j < MAX_EVENTS_PER_USER; j++) {
+                if (i == j || sorted_events[user][j] == NULL) continue;
+
+                uint16_t s_j = sorted_events[user][j]->start.h * 60 + sorted_events[user][j]->start.m;
+                uint16_t e_j = (sorted_events[user][j]->end.h < sorted_events[user][j]->start.h
+                                ? sorted_events[user][j]->end.h + 24
+                                : sorted_events[user][j]->end.h) * 60 + sorted_events[user][j]->end.m;
+
+                if (s_i < e_j && s_j < e_i) {
+                    overlaps[user][i]++;
+                    if (j < i) offset_index[user][i]++;
+                }
+            }
+        }
+    }
+}
 
 
 void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
@@ -623,8 +663,6 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
     // Get all calendars and do correct calculations
     uint16_t max_height = SCREEN_HEIGHT - y_pos;
-
-
     for (int i = 1; i < 3; i++) {
         sprintf(key, "user_%d_ids", i);
 
@@ -667,12 +705,16 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     
     // Shift events
     shift_events(sorted_events, timeinfo);
-
     print_sorted_events(sorted_events);
-    
-    
+
+    // Get overlaps
+    uint8_t overlaps[2][MAX_EVENTS_PER_USER];
+    uint8_t offset_index[2][MAX_EVENTS_PER_USER] = {0};
+
+    calculate_event_overlaps(sorted_events, overlaps, offset_index);
+ 
     Event *start_event = NULL;
-    // get minimum
+    // Get Start event
     if (sorted_events[0][0] == NULL) start_event = sorted_events[1][0];
     else if (sorted_events[1][0] == NULL) start_event = sorted_events[0][0];
     else start_event = (compare_events(&(sorted_events[0][0]),&(sorted_events[1][0])) < 0) ? sorted_events[0][0] : sorted_events[1][0];
@@ -687,22 +729,24 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     float ratio;
     int actual_height;
     int actual_y;
+    int actual_width;
+    int old_y = 0;
+    int mingap = 0.75 * block_height;
 
     for (int i = 0; i < 2; i++) {
         x_pos = i == 0 ? SECOND_COLUMN - block_width : SECOND_COLUMN;
         for (int j = 0; j < MAX_EVENTS_PER_USER; j++) {
             if (sorted_events[i][j] != NULL) {
-
                 // Gap calculation
                 ratio = ((sorted_events[i][j]->start.h * 60 + sorted_events[i][j]->start.m) - (start_event->start.h * 60 + start_event->start.m))/60.0;
                 actual_y = y_pos + (ratio * block_height) - 2;
 
                 // Block dimension
                 ratio = (((sorted_events[i][j]->end.h < sorted_events[i][j]->start.h  ? sorted_events[i][j]->end.h + 24 : sorted_events[i][j]->end.h) * 60 + sorted_events[i][j]->end.m) - (sorted_events[i][j]->start.h * 60 + sorted_events[i][j]->start.m))/60.0;
-                actual_height = ratio * block_height;                
+                actual_height = MAX(ratio * block_height, mingap);                
+                actual_width =  block_width/(overlaps[i][j]); 
 
-
-                draw_event_block(*(sorted_events[i][j]), x_pos, actual_y, i, block_width, actual_height);
+                draw_event_block(*(sorted_events[i][j]), x_pos + offset_index[i][j] * actual_width, actual_y, i, actual_width, actual_height, overlaps[i][j] > 0);
             }
         }
     }

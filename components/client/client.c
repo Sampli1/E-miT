@@ -8,6 +8,7 @@
 #include <esp_http_client.h>
 #include <env_var.h>
 
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static const char *TAG = "HTTP_CLIENT";

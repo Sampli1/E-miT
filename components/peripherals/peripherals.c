@@ -4,6 +4,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 
+
 #define PIN_LED 26
 #define PIN_SENSOR 27
 
@@ -30,7 +31,24 @@ static void gpio_task(void* arg) {
         if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
             printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
 
-            // I have only a GPIO interrupt
+            if (gpio_get_level(io_num)) {
+                // Refresh e-paper info and deactivate it for 1 minutes
+
+                gpio_intr_disable(io_num);
+                // Routine to start getting screen resources and display it
+                xTaskCreate(start_screen, "SCREEN", 1024*30, NULL, 3, NULL);
+                
+                gpio_set_level(PIN_LED, 1);
+
+                // 60 seconds of cooldown
+                vTaskDelay(pdMS_TO_TICKS(60*1000));
+                printf("[GPIO] Ready\n");
+
+                gpio_set_level(PIN_LED, 0);
+                gpio_intr_enable(io_num);
+
+            }
+
             gpio_set_level(PIN_LED, toggle++);
             toggle = !toggle;
 
@@ -40,6 +58,11 @@ static void gpio_task(void* arg) {
 }
 
 void start_gpio(void *pvParameters) {
+    // Avoid immediate restart due to proximity sensor (20 s)
+    vTaskDelay(pdMS_TO_TICKS(20*1000));
+
+    printf("[GPIO] Start config\n");
+
     // PIN_LED
     gpio_config_t led_conf = {};
     led_conf.intr_type = GPIO_INTR_DISABLE;

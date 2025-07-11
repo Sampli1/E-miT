@@ -29,7 +29,6 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
     char *buffer = calloc(1024 * 5, sizeof(char));
     char **ids_enabled = NULL;
     char *json_vec[20];
-    for (int i= 0; i < 20; i++) json_vec[i] = calloc(1024 , sizeof(char));
     
     size_t length = 0;
     int enabled_length = 0;
@@ -71,7 +70,7 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
     free(id);
     free(buffer);
     free(val);
-    for (int i = 0; i < 20; i++) free(json_vec[i]);
+    for (int i = 0; i < items_length; i++) free(json_vec[i]);
 }
 
 static esp_err_t get_calendar_handler(httpd_req_t *req) {

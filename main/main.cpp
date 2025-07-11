@@ -17,7 +17,6 @@ extern "C" {
     #include "spiffs_handler.h"
     #include "peripherals.h"
     #include "wifi.h"
-    SemaphoreHandle_t client_http_mutex;
     void app_main(void);
 }
 
@@ -36,25 +35,19 @@ void app_main(void) {
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    esp_log_level_set("httpd", ESP_LOG_VERBOSE);
+    // esp_log_level_set("httpd", ESP_LOG_VERBOSE);
     
     // Set WiFi and time synchronization
     wifi_and_time_init_sta();
 
     // Start spiffs memory
     init_spiffs();
-    
-    // Start http(s) client
-    load_cert();
-    start_http_client();
-
-    client_http_mutex = xSemaphoreCreateMutex();
-    
+     
     // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 1024 * 4, NULL, 5, NULL);
+    xTaskCreate(start_server, "SERVER", 1024 * 8, NULL, 5, NULL);
 
     // Routine to start getting screen resources and display it
-    xTaskCreate(start_screen, "SCREEN", 1024*11, NULL, 3, NULL);
+    xTaskCreate(start_screen, "SCREEN", 1024 * 30, NULL, 3, NULL);
 
     // Routine of peripherals
     xTaskCreate(start_gpio, "GPIO", 1024 * 2, NULL, 4, NULL);

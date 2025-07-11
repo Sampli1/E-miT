@@ -8,3 +8,48 @@ calendars.txt
 **/CMakeCache.txt
 /CMakeFiles
 /icons
+
+# KiCad project files to keep
+!pcb/*.kicad_pro
+!pcb/*.kicad_sch
+!pcb/*.kicad_pcb
+!pcb/*.lib
+!pcb/*.dcm
+!pcb/*.pretty/
+!pcb/gerber/
+!pcb/fabrication/
+!pcb/3D_models/
+
+# Ignore KiCad backup and autosave files
+pcb/*.bak
+pcb/*.kicad_sch-bak
+pcb/*.kicad_pcb-bak
+pcb/*.kicad_prl
+pcb/autosave-*
+
+# Ignore KiCad cache and temporary files
+pcb/*.net
+pcb/*.bck
+pcb/*.cmp
+pcb/*.cache
+pcb/*.pyc
+pcb/fp-info-cache
+pcb/*.rescue-backup
+
+# Ignore simulation files (if used)
+pcb/*.raw
+pcb/*.log
+pcb/*.plt
+pcb/spice/
+
+# Ignore KiCad project-specific settings
+pcb/*.kicad_wks
+pcb/sym-lib-table
+pcb/fp-lib-table
+pcb/*.pro.user
+
+# Ignore any additional hidden files
+pcb/.*
+
+
+learning/

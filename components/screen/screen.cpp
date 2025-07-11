@@ -32,10 +32,14 @@
 
 static const char *TAG = "SCREEN";
 
+static bool initiated = false;
+static SemaphoreHandle_t screen_mutex = NULL;
 
 extern "C" {
     #include "client.h"
     #include "esp_server.h"  
+    #include <ctime>
+#include <esp_heap_trace.h>
 };
 
 
@@ -107,8 +111,8 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
     char *hour = (char *) calloc(100, sizeof(char));
     char *time = (char *) calloc(50, sizeof(char));
     char *line = (char *) calloc(100, sizeof(char));
-    for (int i = 0; i < 20; i++) json_vec[i] = (char*) calloc(MAX_POST_RES_LENGTH, sizeof(char));
 
+    // ! WARNING: json_vec is allocated in the function
     from_string_to_json_string_vec(gtt, json_vec, &length);
 
     int j = 0;
@@ -122,11 +126,13 @@ void print_gtt_info(char *gtt, int col1_x, int top_y, int row_spacing, char *lin
             memset(time, 0, 50);
             j++;
         }
+        
+        free(json_vec[i]);
     }
 
-    for (int i = 0; i < 20; i++) free(json_vec[i]);
     free(hour);
     free(line);
+    free(time);
 }
 
 
@@ -137,7 +143,7 @@ void write_gtt() {
     int row_spacing = 30;
     
     display.setCursor(col1_x, top_y);
-    display.print("4N");
+    display.print("4");
 
     display.setCursor(col2_x, top_y);
     display.print("10");
@@ -149,34 +155,20 @@ void write_gtt() {
     gtt_apis[1] = GTT_API STOP_SND;
     gtt[0] = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     gtt[1] = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
-         
-    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-        ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[0]);  
+          
+    ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[0]);  
+    get_api(gtt[0], gtt_apis[0], NULL, NULL, 0);
 
-        // ?
-        ESP_LOGI(TAG, "FREE HEAP before api call: %"PRIu32, esp_get_free_heap_size());
-        get_api(gtt[0], gtt_apis[0], NULL, NULL, 0);
-        // ?
-        ESP_LOGI(TAG, "FREE HEAP after api call: %"PRIu32, esp_get_free_heap_size());
-        xSemaphoreGive(client_http_mutex);
-    }
-
-    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-        ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[1]);  
-        // ?
-        ESP_LOGI(TAG, "FREE HEAP before api call: %"PRIu32, esp_get_free_heap_size());
-        get_api(gtt[1], gtt_apis[1], NULL, NULL, 0);
-        // ?
-        ESP_LOGI(TAG, "FREE HEAP after api call: %"PRIu32, esp_get_free_heap_size());
-        xSemaphoreGive(client_http_mutex);
-    }
-
+    ESP_LOGI(TAG, "Chiamo lui: %s", gtt_apis[1]);  
+    get_api(gtt[1], gtt_apis[1], NULL, NULL, 0);
 
     ESP_LOGI(TAG, "Lelle %s", gtt[0]);
     ESP_LOGI(TAG, "Sandro %s", gtt[1]);
 
-    char* el = (char *) "4N";
+
+    char* el = (char *) "4";
     print_gtt_info(gtt[0], col1_x, top_y, row_spacing, el);
+
     el = (char *) "10";
     print_gtt_info(gtt[1], col2_x, top_y, row_spacing, el);
 
@@ -214,21 +206,19 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
     char weather_api[512] = {'\0'}, city_name[50];
     get_city_info(weather_api, city_name, nvs_handler);
 
-    if (xSemaphoreTake(client_http_mutex, portMAX_DELAY) == pdTRUE) {
-        ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
-        get_api(weather, weather_api, NULL, NULL, 0);
-        xSemaphoreGive(client_http_mutex);
-    }
+    ESP_LOGI(TAG, "Chiamo lui: %s", weather_api);  
+    get_api(weather, weather_api, NULL, NULL, 0);
 
     // Handle JSON data => please, avoid using C for future projects
     decompose_json_dynamic_params(weather, 1, "hourly", hourly);
+    
     decompose_json_dynamic_params(hourly, 3, "temperature_2m", temperatures, "precipitation_probability", precipitations, "weather_code", wheaters);    
+
     from_string_to_int_array(temperatures, temperatures_values, &dim);
     from_string_to_int_array(precipitations, precipitations_values, &dim);
     from_string_to_int_array(wheaters, wheaters_values, &dim);
 
     // Meteo icons and values 
-
     int icon_val = wheaters_values[timeinfo.tm_hour];
     const unsigned char *icon = write_weather_icon(icon_val);
     int temperature = temperatures_values[timeinfo.tm_hour];
@@ -332,6 +322,12 @@ void write_meteo(struct tm timeinfo, nvs_handle nvs_handler) {
 
     display.setFont(&FreeMonoBold12pt7b);
     display.setTextSize(1);
+
+    free(weather);
+    free(hourly);
+    free(temperatures);
+    free(precipitations);
+    free(wheaters);
 }
 
 
@@ -346,9 +342,6 @@ typedef struct {
     Date end;
 } Event;
 
-
-
-
 Date parse_datetime(const char *datetime) {
     Date d = {0, 0};  // Inizializza con 0
     int hour, minute;
@@ -362,19 +355,18 @@ Date parse_datetime(const char *datetime) {
     return d;
 }
 
-
 void decompose_events_to_struct(char *raw_events, Event *events, uint8_t *events_number) {
     char *events_dec = (char *) calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
     char *json_events[MAX_EVENTS_PER_USER];
     int events_length = -1;
-    for (int i = 0; i < MAX_EVENTS_PER_USER; i++) json_events[i] = (char *) calloc(500, sizeof(char));
-    
+
     decompose_json_dynamic_params(raw_events, 1, "items", events_dec); 
+
     from_string_to_json_string_vec(events_dec, json_events, &events_length);
     if (events_length == 0 || strcmp(json_events[0], "[]") == 0) {
         ESP_LOGI(TAG, "No events");
         free(events_dec);
-        for (int i = 0; i < MAX_EVENTS_PER_USER; i++) free(json_events[i]);
+        for (int i = 0; i < events_length; i++) free(json_events[i]);
         return;
     }
 
@@ -410,7 +402,7 @@ void decompose_events_to_struct(char *raw_events, Event *events, uint8_t *events
         events[i].end = parse_datetime(raw_date);
     }
 
-    for (int i = 0; i < MAX_EVENTS_PER_USER; i++) free(json_events[i]);
+    for (int i = 0; i < events_length; i++) free(json_events[i]);
     free(raw_date);
     free(end_date);
     free(start_date);
@@ -510,8 +502,7 @@ void shift_events(Event *sorted_events[2][MAX_EVENTS_PER_USER], struct tm timein
             if (sorted_events[user][i] == NULL) break;
         
             uint16_t event_start_time = sorted_events[user][i]->start.h * 60 + sorted_events[user][i]->start.m;
-            uint16_t event_end_time = (sorted_events[user][i]->end.h < sorted_events[user][i]->start.h  ? sorted_events[user][i]->end.h + 24 : sorted_events[user][i]->end.h) * 60 + sorted_events[user][i]->end.m;
-            
+            uint16_t event_end_time = (sorted_events[user][i]->end.h < sorted_events[user][i]->start.h  ? sorted_events[user][i]->end.h + 24 : sorted_events[user][i]->end.h) * 60 + sorted_events[user][i]->end.m;            
 
             printf("TITLE %s, start %d, end %d\n", sorted_events[user][i]->title, event_end_time, event_start_time);
 
@@ -527,9 +518,6 @@ void shift_events(Event *sorted_events[2][MAX_EVENTS_PER_USER], struct tm timein
         if (last_ongoing_event != -1) {
             shift_index = last_ongoing_event;
         }
-
-
-
 
         int new_index = 0;
         for (int i = shift_index; i < MAX_EVENTS_PER_USER; i++) {
@@ -639,6 +627,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
     for (int i = 1; i < 3; i++) {
         sprintf(key, "user_%d_ids", i);
+
         if (get_from_nvs(nvs_handler, key, &calendars, NULL) != ESP_OK) continue;
 
         from_string_to_string_array(calendars, &calendars_list, &calendar_list_len);        
@@ -650,6 +639,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
         for (int j = 0; j < calendar_list_len; j++) {
             sprintf(url, CALENDAR_ELEMENTS_LINK, calendars_list[j], timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, 0, 0, 0, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+
             get_api_oauth2(res, MAX_HTTP_OUTPUT_BUFFER, url, nvs_handler, i);
             
             if (res[0] == '\0') continue;
@@ -669,8 +659,6 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     Event *sorted_events[2][MAX_EVENTS_PER_USER] = { NULL };
 
     sort_events(events, sorted_events);
-
-
 
     x_pos = 0;
     y_pos +=10;
@@ -801,13 +789,22 @@ void write_time(struct tm timeinfo) {
 }
 
 
-void write_separator() {
-    // vertical separator 
-    display.writeLine(FIRST_COLUMN, 0, FIRST_COLUMN, SCREEN_HEIGHT, EPD_BLACK); 
-}
+#define NUM_RECORDS 100
 
 void start_screen(void *pvParameters) {
-    display.init(true);
+
+
+    if (screen_mutex == NULL) {
+        screen_mutex = xSemaphoreCreateMutex();
+    }
+
+    if (xSemaphoreTake(screen_mutex, portMAX_DELAY)) {
+        if (!initiated) {
+            display.init(true);
+            initiated = true;
+        }
+        xSemaphoreGive(screen_mutex);
+    }
 
     // Config
     display.setTextSize(1);
@@ -825,12 +822,17 @@ void start_screen(void *pvParameters) {
     nvs_handle_t nvs_handler;
     nvs_open("general_data", NVS_READONLY, &nvs_handler);
 
-    // write_separator();
+    // --- write_gtt --- LEAK CHECKED -> OK
     write_gtt();
+    // --- write_time --- LEAK CHECKED -> OK
+    
     write_time(timeinfo);
-    write_meteo(timeinfo, nvs_handler);
-    write_calendar(timeinfo, nvs_handler);
 
+    // --- write_meteo ---
+    write_meteo(timeinfo, nvs_handler);
+
+    // -- write_calendars -- LEAK CHECKED -> LEAKA COME IL FUOCO
+    write_calendar(timeinfo, nvs_handler);
 
     ESP_LOGI(TAG, "Writing success!");
 

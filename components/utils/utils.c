@@ -356,7 +356,7 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
   return -1;
 }
 
-void decompose_json_dynamic_params(char *json, int num_params, ...) {
+void decompose_json_dynamic_params(const char *json, int num_params, ...) {
     jsmn_parser p;
     jsmntok_t t[1028];
     int i, j, r;
@@ -487,50 +487,52 @@ void from_string_to_int_array(char *input, int *array, int *size) {
 
 
 void from_string_to_string_array(const char *input, char ***array, int *size) {
-    char *temp = strdup(input);  
+    *array = NULL;
+    *size = 0;
+
+    char *temp = strdup(input);
     if (!temp) return;
 
-    for (int i = 0; temp[i] != '\0'; i++) {
-        if (temp[i] == '[' || temp[i] == ']') {
-            temp[i] = ' ';
-        }
+    for (int i = 0; temp[i]; i++) {
+        if (temp[i] == '[' || temp[i] == ']') temp[i] = ' ';
     }
 
     int count = 0;
-    char *token = strtok(temp, " ,");
-    while (token != NULL) {
+    char *ptr = temp;
+    while ((ptr = strtok(ptr, " ,")) != NULL) {
         count++;
-        token = strtok(NULL, " ,");
+        ptr = NULL;  // strtok wants NULL after first call
     }
 
-    *array = (char **)malloc(count * sizeof(char *));
+    free(temp);
+    temp = strdup(input);
+    if (!temp) return;
+
+    for (int i = 0; temp[i]; i++) {
+        if (temp[i] == '[' || temp[i] == ']') temp[i] = ' ';
+    }
+
+    *array = malloc(count * sizeof(char*));
     if (!(*array)) {
         free(temp);
         return;
     }
 
-    strcpy(temp, input);
-    for (int i = 0; temp[i] != '\0'; i++) {
-        if (temp[i] == '[' || temp[i] == ']') {
-            temp[i] = ' ';
-        }
-    }
-
-    token = strtok(temp, " ,");
-    int index = 0;
-    while (token != NULL) {
+    int idx = 0;
+    char *token = strtok(temp, " ,");
+    while (token != NULL && idx < count) {
         size_t len = strlen(token);
         if (len > 1 && token[0] == '"' && token[len - 1] == '"') {
             token[len - 1] = '\0';
-            token++;  
+            token++;
         }
 
-        (*array)[index] = strdup(token);  
-        index++;
+        (*array)[idx] = strdup(token);
+        idx++;
         token = strtok(NULL, " ,");
     }
 
-    *size = count;
+    *size = idx;
     free(temp);
 }
 
@@ -542,4 +544,3 @@ void free_string_array(char **array, int size) {
     }
     free(array);
 }
-

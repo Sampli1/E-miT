@@ -5,7 +5,7 @@
 #include "driver/gpio.h"
 #include "freertos/queue.h"
 
-void start_spi(void);
+#include "screen.hpp"
 
 void start_gpio(void *pvParameters);
 

@@ -1,4 +1,6 @@
 idf_component_register(SRCS "peripherals.c"
                     INCLUDE_DIRS "include"
                     REQUIRES 
-                        driver)
+                        driver
+                        screen
+                        )

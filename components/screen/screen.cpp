@@ -12,6 +12,9 @@
 #include "generic_icons.h"
 #include "gdew075T7.h"
 #include "nvs_utils.h"
+#include "esp_server.h"
+#include "esp_sleep.h"
+
 
 
 #include "Fonts/FreeSans9pt7b.h"
@@ -41,6 +44,7 @@ extern "C" {
     #include "esp_server.h"  
     #include <ctime>
 #include <esp_heap_trace.h>
+#include <esp_sleep.h>
 };
 
 
@@ -587,6 +591,7 @@ int draw_event_block(Event event, int16_t pos_x, int16_t pos_y, int index, int b
     return titleY;
 }
 
+
 void calculate_event_overlaps(Event *sorted_events[2][MAX_EVENTS_PER_USER], uint8_t overlaps[2][MAX_EVENTS_PER_USER], uint8_t offset_index[2][MAX_EVENTS_PER_USER]) {
     for (int user = 0; user < 2; user++) {
         for (int i = 0; i < MAX_EVENTS_PER_USER; i++) {
@@ -635,7 +640,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
 
     int calendar_list_len;
     int16_t x_pos = 0, y_pos = 26, x_end, y_end, centeredX;
-    uint16_t w = 0, h, x_center, y_center;
+    uint16_t w = 0, h, x_center;
     char *name;
 
     char key[17];
@@ -662,7 +667,6 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     y_pos = display.getCursorY() - 5;
 
     // Get all calendars and do correct calculations
-    uint16_t max_height = SCREEN_HEIGHT - y_pos;
     for (int i = 1; i < 3; i++) {
         sprintf(key, "user_%d_ids", i);
 
@@ -730,7 +734,6 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     int actual_height;
     int actual_y;
     int actual_width;
-    int old_y = 0;
     int mingap = 0.75 * block_height;
 
     for (int i = 0; i < 2; i++) {
@@ -755,6 +758,7 @@ void calendar_2(nvs_handle_t nvs_handler, struct tm timeinfo) {
     free(url);
 }
 
+
 void calendar_0() {
     display.setFont(&FreeMonoBold12pt7b);
     display.setTextSize(1);
@@ -773,6 +777,7 @@ void calendar_0() {
     display.drawBitmap(average_x_qr, average_y + 30, qr_code, qr_dim, qr_dim, EPD_BLACK);
 
 }
+
 
 void write_calendar(struct tm timeinfo, nvs_handle_t nvs_handler) {
 
@@ -832,12 +837,7 @@ void write_time(struct tm timeinfo) {
     display.println(date_buf);    
 }
 
-
-#define NUM_RECORDS 100
-
 void start_screen(void *pvParameters) {
-
-
     if (screen_mutex == NULL) {
         screen_mutex = xSemaphoreCreateMutex();
     }
@@ -868,8 +868,7 @@ void start_screen(void *pvParameters) {
 
     // --- write_gtt --- LEAK CHECKED -> OK
     write_gtt();
-    // --- write_time --- LEAK CHECKED -> OK
-    
+    // --- write_time --- LEAK CHECKED -> OK 
     write_time(timeinfo);
 
     // --- write_meteo ---
@@ -880,7 +879,25 @@ void start_screen(void *pvParameters) {
 
     ESP_LOGI(TAG, "Writing success!");
 
+    pwr_epaper_on();
     display.update();
+    pwr_epaper_off();
+
     nvs_close(nvs_handler);
+    
+    // ! SHUTDOWN => DeepSleep
+    vTaskDelay(pdMS_TO_TICKS(10000));
+
+    // Wait for both user wants to modify something (from the website) and cooldown  
+    while (is_server_open()) {
+        ESP_LOGI("DEEP SLEEP", "Waiting server shutdown!");
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+
+    // Goodnight 
+    ESP_LOGI("DEEP SLEEP", "Goodnight!");
+    esp_sleep_enable_ext0_wakeup(PIN_WAKEUP, 1);
+    esp_deep_sleep_start();
+
     vTaskDelete(NULL);
 }

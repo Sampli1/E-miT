@@ -160,14 +160,14 @@ void token_management(char *code, char *scope, char* id) {
     sprintf(body, "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code&access_type=offline&prompt=consent", code, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
 
-    char *response = calloc(MAX_HTTP_OUTPUT_BUFFER, sizeof(char));
+    char *response = calloc(2500, sizeof(char));
     if (!response) {
         ESP_LOGE(TAG, "Out of memory");
         free(body);
         return;
     }
 
-    int ret = post_api(body, TOKEN_URI, response, MAX_HTTP_OUTPUT_BUFFER);
+    int ret = post_api(body, TOKEN_URI, response, 2500);
     if (!ret) {
         ESP_LOGE(TAG, "Token request failed");
         free(body);
@@ -178,10 +178,22 @@ void token_management(char *code, char *scope, char* id) {
     char *access_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char)); 
     char *refresh_token = calloc(MAX_POST_BODY_LENGTH, sizeof(char));
 
+    ESP_LOGI(TAG, "Response: %s", response);
+
     decompose_json_dynamic_params(response, 2, "access_token", access_token, "refresh_token", refresh_token);
 
     ESP_LOGI(TAG, "ACCESS_TOKEN = %s", access_token);
     ESP_LOGI(TAG, "REFRESH TOKEN = %s", refresh_token);
+
+    if (strlen(access_token) == 0 || access_token[0] == '\0'
+    || strlen(refresh_token) == 0 || refresh_token[0] == '\0') {
+        ESP_LOGE(TAG, "User does not exist");
+        free(access_token);
+        free(refresh_token);
+        free(body);
+        free(response);
+        return;
+    } 
 
     // Get Name
     int headers_length = 2;
@@ -198,7 +210,8 @@ void token_management(char *code, char *scope, char* id) {
 
     get_api(response, USER_INFO, headers_keys, headers_values, headers_length);
     
-    char email[50] = {0}, surname[50] = {0};
+    char *email = calloc(50, sizeof(char));
+    char *surname = calloc(50, sizeof(char));
 
     decompose_json_dynamic_params(response, 2, "email", email, "family_name", surname);
 
@@ -225,10 +238,13 @@ void token_management(char *code, char *scope, char* id) {
     nvs_commit(NVS);
     nvs_close(NVS);
     
+    free(email);
+    free(surname);
     free(body);
     free(response);
     free(access_token);
     free(refresh_token);
+    free(headers_values[1]);
 }
 
 // ! THREAD SAFE
@@ -254,7 +270,7 @@ esp_err_t get_api_oauth2(char *content, size_t content_length, char *api_address
     get_from_nvs(NVS, at_key, &access_token, &total_size);
 
 
-    if (access_token == NULL || strlen(access_token) <= 1) {
+    if (access_token == NULL || strcmp(access_token, "NULL") == 0) {
         if (access_token) free(access_token);
         free(headers_values[1]);
         ESP_LOGE(TAG, "Invalid/Do not found access token");

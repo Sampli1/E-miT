@@ -43,9 +43,6 @@ void app_main(void) {
     // Start spiffs memory
     init_spiffs();
      
-    // Routine to start a server (HTTPd)
-    xTaskCreate(start_server, "SERVER", 1024 * 8, NULL, 5, NULL);
-
     // Routine to start getting screen resources and display it
     xTaskCreate(start_screen, "SCREEN", 1024 * 30, NULL, 3, NULL);
 

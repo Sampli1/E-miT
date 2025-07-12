@@ -48,8 +48,10 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
     }
 
     // Get calendars and pass to frontend enabled calendars and list of them
+    ESP_LOGI(TAG, "calendar_response %s", calendar_response);
     decompose_json_dynamic_params(calendar_response, 1, "items", items);
     from_string_to_json_string_vec(items, json_vec, &items_length);
+
     int enabled;
     for (int i = 0; i < items_length; i++) {
         enabled = 0;
@@ -71,6 +73,7 @@ void decompose_calendar_names(nvs_handle_t NVS, int id_val, char *calendar_respo
     free(buffer);
     free(val);
     for (int i = 0; i < items_length; i++) free(json_vec[i]);
+    ESP_LOGI(TAG, "freed everything");
 }
 
 static esp_err_t get_calendar_handler(httpd_req_t *req) {
@@ -97,7 +100,7 @@ static esp_err_t get_calendar_handler(httpd_req_t *req) {
             if (httpd_query_key_value(buf, "id", param, sizeof(param)) == ESP_OK) {
                 ESP_LOGI(TAG, "Found URL query parameter => id=%s", param);
                 example_uri_decode(id, param, strnlen(param, HTTP_QUERY_KEY_MAX_LEN));
-                ESP_LOGI(TAG, "Decoded query parameter => %s", name);
+                ESP_LOGI(TAG, "Decoded query parameter => %s", id);
             }
         }
         free(buf);

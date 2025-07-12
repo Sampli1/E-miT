@@ -7,6 +7,7 @@ extern "C" {
 
 #include "utils.h"
 #include "oauth2.h"
+#include "peripherals.h"
 
 void start_screen(void *pvParameters);
 

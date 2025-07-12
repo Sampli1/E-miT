@@ -3,4 +3,5 @@ idf_component_register(SRCS "peripherals.c"
                     REQUIRES 
                         driver
                         screen
+                        server
                         )

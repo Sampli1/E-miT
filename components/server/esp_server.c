@@ -15,9 +15,14 @@
 #include "esp_server.h"
 #include "utils.h"
 #include "calendar.h"
+#include "peripherals.h"
+
+#define TIMEOUT 600
+#define BLINKING 15
 
 static const char *TAG = "SERVER";
 
+httpd_handle_t server = NULL;
 
 
 static esp_err_t key_get_handler(httpd_req_t *req) {
@@ -299,10 +304,31 @@ static httpd_handle_t start_webserver() {
 
 
 void start_server(void *pvParameters) {
-    httpd_handle_t server = start_webserver();
+    server = start_webserver();
     
-    while (server) {
+    int seconds = 0;
 
-        sleep(5);
+    while (server) {
+        if (seconds > TIMEOUT - BLINKING) blink();
+        if (seconds >= TIMEOUT) break;
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        seconds++;
     }
+
+    if (server) {
+        httpd_stop(server);
+        server = NULL;
+    }
+
+    vTaskDelete(NULL);
+}
+
+void stop_server() {
+    httpd_stop(server);
+    server = NULL;
+}
+
+int is_server_open() {
+    return server != NULL;
 }

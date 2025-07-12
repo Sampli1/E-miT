@@ -5,4 +5,5 @@ idf_component_register(SRCS "esp_server.c" "calendar.c"
                         esp_http_server
                         utils
                         client
+                        peripherals
                         )
